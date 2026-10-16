@@ -1,0 +1,52 @@
+# ============ 构建产物 ============
+bin/
+obj/
+*.user
+*.suo
+.vs/
+
+# ============ Roslyn 生成代码（编译时自动重新生成） ============
+**/Ext/.generated/
+
+# ============ 本地/临时 ============
+.workbuddy/
+AppData/
+gc_ct_imgs/
+*.tmp
+Thumbs.db
+desktop.ini
+
+# ============ 提取/临时文本 ============
+*_extracted.txt
+gc_ct_ocr.txt
+gc_ct_sensor_extracted.txt
+gc_ct_text.txt
+grating_protocol_extracted.txt
+rj6836h_extracted.txt
+ui_note_tmp.txt
+read_excel.ps1
+
+# ============ 手册 PDF（保留原版即不忽略；如不需要可取消注释） ============
+# *.pdf
+# *.rar
+
+# ============ 其它 ============
+*.DotSettings.user
+DT-N23X.sln
+DDD.Framework.sln
+
+# ============ 构建/发布产物（THA26003 补充） ============
+.publish/
+**/.publish/
+**/publish/
+[Dd]ebug/
+[Rr]elease/
+
+# ============ 本地工具链缓存 ============
+.dotnet/
+
+# ============ 运行期生成的本地库与发布文件 ============
+*.db
+*.db-shm
+*.db-wal
+Logs/

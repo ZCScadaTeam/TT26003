@@ -1,0 +1,88 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:iconPacks="https://github.com/MahApps/IconPacks.Avalonia"
+        xmlns:dialogs="clr-namespace:AppZC.UI.Dialogs"
+        mc:Ignorable="d" d:DesignWidth="400" d:DesignHeight="180"
+        x:Class="AppZC.UI.Dialogs.ConfirmDialog"
+        x:DataType="dialogs:MessageDialogVM"
+        Width="400"
+        Height="180"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False"
+        ShowInTaskbar="False"
+        Background="Transparent"
+        SystemDecorations="None">
+    
+    <Design.DataContext>
+        <dialogs:MessageDialogVM />
+    </Design.DataContext>
+    
+    <!-- 主容器 -->
+    <Border Background="{DynamicResource CardBackgroundSolidBrush}" 
+            BorderBrush="LightGray" 
+            BorderThickness="1" 
+            CornerRadius="8"
+            Margin="10"
+            BoxShadow="0 4 16 0 #40000000">
+        <Grid RowDefinitions="Auto,*,Auto">
+            <!-- 标题栏 -->
+            <Border Grid.Row="0" 
+                    Background="{DynamicResource CardBackgroundBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="0,0,0,1"
+                    CornerRadius="8,8,0,0"
+                    Padding="18,12">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <iconPacks:PackIconCodicons Kind="Question" 
+                                               Width="18" 
+                                               Height="18" 
+                                               Foreground="{DynamicResource WarningBrush}"
+                                               VerticalAlignment="Center"/>
+                    <TextBlock Text="{Binding Title}" 
+                               FontSize="15" 
+                               FontWeight="SemiBold" 
+                               Foreground="{DynamicResource TextPrimaryBrush}"
+                               VerticalAlignment="Center"/>
+                </StackPanel>
+            </Border>
+            
+            <!-- 内容区域 -->
+            <Border Grid.Row="1" 
+                    Padding="18,18">
+                <TextBlock Text="{Binding Message}" 
+                           FontSize="14" 
+                           TextWrapping="Wrap"
+                           VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextSecondaryBrush}"/>
+            </Border>
+            
+            <!-- 按钮区域 -->
+            <Border Grid.Row="2" 
+                    Background="{DynamicResource CardBackgroundDarkBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}" 
+                    BorderThickness="0,1,0,0"
+                    CornerRadius="0,0,8,8"
+                    Padding="18,12">
+                <StackPanel Orientation="Horizontal" 
+                            HorizontalAlignment="Center"
+                            Spacing="12">
+                    <Button x:Name="OkButton"
+                            Content="确定" 
+                            Classes="Primary"
+                            Theme="{DynamicResource Button-Solid}"
+                            Padding="35,7"
+                            FontSize="14"
+                            Click="OnOkClick"/>
+                    <Button x:Name="CancelButton"
+                            Content="取消" 
+                            Theme="{DynamicResource Button-Outline}"
+                            Padding="35,7"
+                            FontSize="14"
+                            Click="OnCancelClick"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

@@ -1,0 +1,124 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:iconPacks="https://github.com/MahApps/IconPacks.Avalonia"
+        xmlns:dialogs="clr-namespace:AppZC.UI.Dialogs"
+        mc:Ignorable="d" d:DesignWidth="450" d:DesignHeight="250"
+        x:Class="AppZC.UI.Dialogs.PrintErrorDialog"
+        x:DataType="dialogs:MessageDialogVM"
+        Width="450"
+        MinHeight="250"
+        MaxHeight="400"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False"
+        ShowInTaskbar="False"
+        Background="Transparent"
+        SystemDecorations="None">
+    
+    <Design.DataContext>
+        <dialogs:MessageDialogVM />
+    </Design.DataContext>
+    
+    <!-- 主容器 -->
+    <Border Background="{DynamicResource CardBackgroundSolidBrush}" 
+            BorderBrush="LightGray" 
+            BorderThickness="1" 
+            CornerRadius="8"
+            Margin="10"
+            BoxShadow="0 4 16 0 #40000000">
+        <Grid RowDefinitions="Auto,*,Auto">
+            <!-- 标题栏（可拖动） -->
+            <Border Grid.Row="0" 
+                    Background="{DynamicResource WarningLightBrush}"
+                    BorderBrush="{DynamicResource WarningBrush}"
+                    BorderThickness="0,0,0,1"
+                    CornerRadius="8,8,0,0"
+                    Padding="20,15"
+                    PointerPressed="OnTitleBarPointerPressed">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <iconPacks:PackIconCodicons Kind="Warning" 
+                                               Width="20" 
+                                               Height="20" 
+                                               Foreground="{DynamicResource WarningBrush}"
+                                               VerticalAlignment="Center"/>
+                    <TextBlock Text="{Binding Title}" 
+                               FontSize="16" 
+                               FontWeight="SemiBold" 
+                               Foreground="{DynamicResource WarningBrush}"
+                               VerticalAlignment="Center"/>
+                </StackPanel>
+            </Border>
+            
+            <!-- 内容区域 -->
+            <Border Grid.Row="1" 
+                    Padding="20,20">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Spacing="12">
+                        <TextBlock Text="{Binding Message}" 
+                                   FontSize="14" 
+                                   TextWrapping="Wrap"
+                                   LineHeight="22"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"/>
+                        
+                        <!-- 检查提示 -->
+                        <Border Background="{DynamicResource WarningLightBrush}"
+                                BorderBrush="{DynamicResource WarningBrush}"
+                                BorderThickness="1"
+                                CornerRadius="4"
+                                Padding="12">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="请检查以下项目："
+                                           FontSize="13"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource WarningBrush}"/>
+                                <TextBlock Text="• 打印机是否缺纸"
+                                           FontSize="13"
+                                           Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                <TextBlock Text="• 打印机是否缺碳带"
+                                           FontSize="13"
+                                           Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                <TextBlock Text="• 打印机连接是否正常"
+                                           FontSize="13"
+                                           Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                <TextBlock Text="• 打印机是否处于就绪状态"
+                                           FontSize="13"
+                                           Foreground="{DynamicResource TextSecondaryBrush}"/>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+            
+            <!-- 按钮区域 -->
+            <Border Grid.Row="2" 
+                    Background="{DynamicResource CardBackgroundDarkBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}" 
+                    BorderThickness="0,1,0,0"
+                    CornerRadius="0,0,8,8"
+                    Padding="20,15">
+                <StackPanel Orientation="Horizontal" 
+                            HorizontalAlignment="Center"
+                            Spacing="12">
+                    <Button Content="重新打印" 
+                            Classes="Primary"
+                            Theme="{DynamicResource Button-Solid}"
+                            Padding="35,8"
+                            FontSize="14"
+                            Click="OnRetryClick">
+                        <Button.Resources>
+                            <SolidColorBrush x:Key="ButtonSolidBackgroundBrush" Color="#F57C00"/>
+                            <SolidColorBrush x:Key="ButtonSolidBackgroundPointerOverBrush" Color="#EF6C00"/>
+                            <SolidColorBrush x:Key="ButtonSolidBackgroundPressedBrush" Color="#E65100"/>
+                        </Button.Resources>
+                    </Button>
+                    <Button Content="取消" 
+                            Theme="{DynamicResource Button-Outline}"
+                            Padding="35,8"
+                            FontSize="14"
+                            Click="OnCancelClick"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

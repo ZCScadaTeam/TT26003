@@ -1,0 +1,68 @@
+<UserControl
+	xmlns="https://github.com/avaloniaui"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+	xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+	xmlns:pages="clr-namespace:AppZC.UI.Pages.Monitor"
+	mc:Ignorable="d" d:DesignWidth="1600" d:DesignHeight="900"
+	x:Class="AppZC.UI.Pages.Monitor.MonitorPage"
+	x:DataType="pages:MonitorVM">
+
+	<Design.DataContext>
+		<pages:MonitorVM />
+	</Design.DataContext>
+
+	<Grid RowDefinitions="Auto,*,Auto" Margin="10">
+		<!-- 顶部：标题 + 状态 -->
+		<Border Grid.Row="0" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="2" CornerRadius="8" Padding="16,10" Background="{DynamicResource CardBackgroundBrush}" Margin="0,0,0,10">
+			<Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" ColumnSpacing="24">
+				<TextBlock Grid.Column="0" Text="交互结构体监控" FontSize="22" FontWeight="Bold" VerticalAlignment="Center" />
+				<LinearPanel Grid.Column="2" Orientation="Vertical" Spacing="2">
+					<TextBlock Text="PLC 连接状态" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" HorizontalAlignment="Center" />
+					<TextBlock Text="{Binding PlcStatus}" FontSize="16" FontWeight="Bold" Foreground="{DynamicResource PrimaryBrush}" HorizontalAlignment="Center" />
+				</LinearPanel>
+				<LinearPanel Grid.Column="3" Orientation="Vertical" Spacing="2">
+					<TextBlock Text="站别模式" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" HorizontalAlignment="Center" />
+					<TextBlock Text="{Binding StationModeText}" FontSize="16" FontWeight="Bold" Foreground="{DynamicResource PrimaryBrush}" HorizontalAlignment="Center" />
+				</LinearPanel>
+				<LinearPanel Grid.Column="4" Orientation="Vertical" Spacing="2">
+					<TextBlock Text="最后刷新" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" HorizontalAlignment="Center" />
+					<TextBlock Text="{Binding LastRefreshTime}" FontSize="16" FontWeight="Bold" Foreground="{DynamicResource PrimaryBrush}" HorizontalAlignment="Center" />
+				</LinearPanel>
+			</Grid>
+		</Border>
+
+		<!-- 信号表：结构体 / 信号 / 地址 / 值 / 说明 -->
+		<Border Grid.Row="1" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="2" CornerRadius="8" Padding="10" Background="{DynamicResource CardBackgroundBrush}">
+			<DataGrid ItemsSource="{Binding Signals}"
+			          AutoGenerateColumns="False" IsReadOnly="True"
+			          GridLinesVisibility="All" BorderThickness="1" BorderBrush="{DynamicResource BorderBrush}"
+			          CanUserReorderColumns="False" CanUserResizeColumns="True" CanUserSortColumns="False"
+			          HeadersVisibility="Column">
+				<DataGrid.Styles>
+					<Style Selector="DataGridCell">
+						<Setter Property="FontSize" Value="14" />
+						<Setter Property="VerticalAlignment" Value="Center" />
+						<Setter Property="Padding" Value="6,4" />
+					</Style>
+					<Style Selector="DataGridColumnHeader">
+						<Setter Property="FontSize" Value="14" />
+						<Setter Property="FontWeight" Value="SemiBold" />
+					</Style>
+				</DataGrid.Styles>
+				<DataGrid.Columns>
+					<DataGridTextColumn Header="结构体" Binding="{Binding StructName}" Width="70" />
+					<DataGridTextColumn Header="信号" Binding="{Binding Signal}" Width="*" />
+					<DataGridTextColumn Header="地址" Binding="{Binding Address}" Width="100" />
+					<DataGridTextColumn Header="值" Binding="{Binding Value}" Width="130" />
+					<DataGridTextColumn Header="说明" Binding="{Binding Description}" Width="*" />
+				</DataGrid.Columns>
+			</DataGrid>
+		</Border>
+
+		<!-- 底部：数据来源说明 -->
+			<Border Grid.Row="2" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6" Padding="12,8" Background="{DynamicResource CardBackgroundSolidBrush}" Margin="0,10,0,0">
+				<TextBlock Text="数据来源：THA26003 ModbusTCP（%MW 保持寄存器，功能码 03，汇川 InovanceTcpNet，地址写作 MW&lt;号&gt;）。三站信号：打码 %MW10500/10502、读码 %MW10520/10522、下料 %MW10530/10532；数据区 %MW10002~10379（位置度 15 点）；握手 %MW20000/20001、心跳 %MW20502。本页每 500ms 自动刷新；针高/位置度在下料触发时才读取，显示的是最近一次下料的值。" />
+			</Border>
+	</Grid>
+</UserControl>

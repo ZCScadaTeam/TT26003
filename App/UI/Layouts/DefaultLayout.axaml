@@ -1,0 +1,18 @@
+﻿<ApplicationLayoutView
+	xmlns="https://github.com/avaloniaui"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+	xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+	mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+	x:Class="AppZC.UI.Layouts.DefaultLayout"
+	RowDefinitions="Auto,*"
+	HorizontalAlignment="Stretch"
+	VerticalAlignment="Stretch">
+	<Design.DataContext>
+		<AppVM />
+	</Design.DataContext>
+
+	<!-- 主内容区（无左侧导航栏） -->
+	<ContentControl Content="{Binding LayoutView}"
+		Grid.Row="1" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
+</ApplicationLayoutView>

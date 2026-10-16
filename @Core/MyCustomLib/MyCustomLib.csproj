@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+		<LangVersion>$(DotnetLangVersion)</LangVersion>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<AssemblyName>ZC.MyCustomLib</AssemblyName>
+		<RootNamespace>ZC.MyCustomLib</RootNamespace>
+		<!-- 如果需要引用现有的 Core DLL -->
+		<CoreLibPath>../../-/libs/Core</CoreLibPath>
+	</PropertyGroup>
+
+	<!-- 引用现有的 Core DLL（可选） -->
+	<ItemGroup Condition="'$(CoreLibPath)' !=''">
+		<Reference Include="$(CoreLibPath)/ZC.Core.dll"/>
+	</ItemGroup>
+
+	<!-- NuGet 包引用（根据需要添加） -->
+	<ItemGroup>
+		<PackageReference Include="Newtonsoft.Json" Version="$(NewtonsoftJsonVersion)"/>
+	</ItemGroup>
+
+</Project>

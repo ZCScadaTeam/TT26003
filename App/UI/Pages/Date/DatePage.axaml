@@ -1,0 +1,401 @@
+<UiView xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:lvc="using:LiveChartsCore.SkiaSharpView.Avalonia"
+        xmlns:pages="clr-namespace:AppZC.UI.Pages"
+        x:Class="AppZC.UI.Pages.DatePage"
+        x:DataType="pages:DateVM">
+    <LinearPanel Orientation="Vertical" Padding="20" Spacing="20">
+        <!-- 筛选区域：左侧控件在窄窗口自动换行，查询按钮独占右列，避免两者互相覆盖 -->
+        <Grid ColumnDefinitions="*,Auto">
+            <WrapPanel Grid.Column="0" Orientation="Horizontal" ItemSpacing="15" LineSpacing="8">
+                <Label Content="统计方式：" VerticalAlignment="Center" />
+                <ComboBox MinWidth="150" SelectedItem="{Binding SelectedTimeRangeTypeStr}" VerticalAlignment="Center">
+                    <ComboBox.Items>
+                        <x:String>按小时</x:String>
+                        <x:String>按班组</x:String>
+                        <x:String>按天</x:String>
+                    </ComboBox.Items>
+                </ComboBox>
+
+                <CheckBox Content="图表视图" IsChecked="{Binding ShowChartView}" VerticalAlignment="Center"/>
+                <CheckBox Content="表格视图" IsChecked="{Binding ShowTableView}" VerticalAlignment="Center"/>
+                <CheckBox Content="详细数据" IsChecked="{Binding ShowDetailView}" VerticalAlignment="Center"/>
+                <CheckBox Content="数据追溯" IsChecked="{Binding ShowTraceView}" VerticalAlignment="Center"/>
+
+                <!-- 表格视图：单日选择（白/晚班小时统计为单日语义） -->
+                <StackPanel Orientation="Horizontal" Spacing="5" IsVisible="{Binding ShowTableView}" VerticalAlignment="Center">
+                    <Label Content="选择日期：" VerticalAlignment="Center" />
+                    <DatePicker SelectedDate="{Binding SelectedDate}" VerticalAlignment="Center" />
+                </StackPanel>
+
+                <!-- 详细数据视图：时间段选择（区间变更不自动查询，点右侧「查询」触发） -->
+                <StackPanel Orientation="Horizontal" Spacing="5" IsVisible="{Binding ShowDetailView}" VerticalAlignment="Center">
+                    <Label Content="开始日期：" VerticalAlignment="Center" />
+                    <DatePicker SelectedDate="{Binding DetailStartDate}" VerticalAlignment="Center" />
+                    <Label Content="结束日期：" VerticalAlignment="Center" />
+                    <DatePicker SelectedDate="{Binding DetailEndDate}" VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding DetailRangeText}" VerticalAlignment="Center" Opacity="0.6"
+                               Margin="5,0,0,0" />
+                </StackPanel>
+            </WrapPanel>
+
+            <!-- 全局查询：按当前可见视图派发；追溯视图有自己的「追溯查询」按钮，故在此隐藏 -->
+            <Button Grid.Column="1" Content="查询" Command="{Binding QueryCommand}"
+                    IsVisible="{Binding !ShowTraceView}"
+                    IsEnabled="{Binding !IsDetailLoading}"
+                    VerticalAlignment="Center" Margin="10,0,0,0" />
+        </Grid>
+        
+        <!-- LiveCharts 图表 -->
+        <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="2" CornerRadius="8" Padding="30" Background="{DynamicResource CardBackgroundBrush}"
+                IsVisible="{Binding ShowChartView}">
+            <LinearPanel Orientation="Vertical" Spacing="20">
+                <TextBlock Text="数据概览柱状图" FontSize="20" FontWeight="Bold" HorizontalAlignment="Center" />
+                
+                <!-- LiveCharts 柱状图 -->
+                <lvc:CartesianChart Series="{Binding Series}"
+                                    XAxes="{Binding XAxes}"
+                                    YAxes="{Binding YAxes}"
+                                    LegendTextPaint="{Binding LegendTextPaint}"
+                                    LegendTextSize="14"
+                                    TooltipTextPaint="{Binding TooltipTextPaint}"
+                                    TooltipBackgroundPaint="{Binding TooltipBackgroundPaint}"
+                                    TooltipTextSize="14"
+                                    Height="500"
+                                    LegendPosition="Top" />
+            </LinearPanel>
+        </Border>
+        
+        <!-- 表格视图 -->
+        <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="2" CornerRadius="8" Padding="30" Background="{DynamicResource CardBackgroundBrush}"
+                IsVisible="{Binding ShowTableView}">
+            <LinearPanel Orientation="Vertical" Spacing="20">
+                <TextBlock Text="数据概览表格" FontSize="20" FontWeight="Bold" HorizontalAlignment="Center" />
+                
+                <!-- 左右两列表格布局 -->
+                <Grid ColumnDefinitions="*,20,*">
+                    <!-- 左侧：白班表格 (8:30-20:30) -->
+                    <Border Grid.Column="0" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4">
+                        <LinearPanel Orientation="Vertical">
+                            <TextBlock Text="白班 (8:30-20:30)" 
+                                       FontSize="16" 
+                                       FontWeight="Bold" 
+                                       HorizontalAlignment="Center" 
+                                       Padding="10"
+                                       Background="{DynamicResource BorderBrush}" />
+                            
+                            <!-- 白班产品出料表格 -->
+                            <DataGrid ItemsSource="{Binding DayShiftTableData}"
+                                      AutoGenerateColumns="False"
+                                      IsReadOnly="True"
+                                      GridLinesVisibility="All"
+                                      BorderThickness="0"
+                                      CanUserReorderColumns="False"
+                                      CanUserResizeColumns="True"
+                                      CanUserSortColumns="False"
+                                      HeadersVisibility="Column">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="时间" Binding="{Binding TimeRange}" Width="Auto" />
+                                    <DataGridTextColumn Header="OK(pcs)" Binding="{Binding 产品出料OK}" Width="*" />
+                                    <DataGridTextColumn Header="NG(pcs)" Binding="{Binding 产品出料NG}" Width="*" />
+                                    <DataGridTextColumn Header="总数(pcs)" Binding="{Binding 产品出料总数}" Width="*" />
+                                    <DataGridTextColumn Header="良率(%)" Binding="{Binding 产品出料良率}" Width="*" />
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </LinearPanel>
+                    </Border>
+                    
+                    <!-- 右侧：晚班表格 (20:30-8:30) -->
+                    <Border Grid.Column="2" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4">
+                        <LinearPanel Orientation="Vertical">
+                            <TextBlock Text="晚班 (20:30-8:30)" 
+                                       FontSize="16" 
+                                       FontWeight="Bold" 
+                                       HorizontalAlignment="Center" 
+                                       Padding="10"
+                                       Background="{DynamicResource BorderBrush}" />
+                            
+                            <!-- 晚班产品出料表格 -->
+                            <DataGrid ItemsSource="{Binding NightShiftTableData}"
+                                      AutoGenerateColumns="False"
+                                      IsReadOnly="True"
+                                      GridLinesVisibility="All"
+                                      BorderThickness="0"
+                                      CanUserReorderColumns="False"
+                                      CanUserResizeColumns="True"
+                                      CanUserSortColumns="False"
+                                      HeadersVisibility="Column">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="时间" Binding="{Binding TimeRange}" Width="Auto" />
+                                    <DataGridTextColumn Header="OK(pcs)" Binding="{Binding 产品出料OK}" Width="*" />
+                                    <DataGridTextColumn Header="NG(pcs)" Binding="{Binding 产品出料NG}" Width="*" />
+                                    <DataGridTextColumn Header="总数(pcs)" Binding="{Binding 产品出料总数}" Width="*" />
+                                    <DataGridTextColumn Header="良率(%)" Binding="{Binding 产品出料良率}" Width="*" />
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </LinearPanel>
+                    </Border>
+                </Grid>
+            </LinearPanel>
+        </Border>
+        
+        <!-- 详细数据视图 -->
+        <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="2" CornerRadius="8" Padding="30" Background="{DynamicResource CardBackgroundBrush}"
+                IsVisible="{Binding ShowDetailView}">
+            <LinearPanel Orientation="Vertical" Spacing="20">
+                <Grid ColumnDefinitions="*,Auto,Auto">
+                    <TextBlock Text="检测数据明细" FontSize="20" FontWeight="Bold" VerticalAlignment="Center" />
+                    <Button Grid.Column="1" Content="导出Excel" Command="{Binding ExportDetailCommand}"
+                            IsEnabled="{Binding !IsExporting}" Margin="0,0,10,0" />
+                    <Button Grid.Column="2" Content="导出CSV" Command="{Binding ExportDetailCsvCommand}"
+                            IsEnabled="{Binding !IsExporting}" />
+                </Grid>
+
+                <DataGrid ItemsSource="{Binding DetailData}"
+                          AutoGenerateColumns="False" IsReadOnly="True"
+                          GridLinesVisibility="All" BorderThickness="1"
+                          BorderBrush="{DynamicResource BorderBrush}"
+                          CanUserReorderColumns="False" CanUserResizeColumns="True"
+                          CanUserSortColumns="False" HeadersVisibility="Column"
+                          RowHeight="26" MaxHeight="600"
+                          ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                          ScrollViewer.VerticalScrollBarVisibility="Auto">
+                    <DataGrid.Columns>
+                                                <DataGridTextColumn Header="下料时间" Binding="{Binding Time}" Width="Auto" />
+                                                <DataGridTextColumn Header="产品码" Binding="{Binding ProductCode}" Width="Auto" />
+                                                <DataGridTextColumn Header="打码结果" Binding="{Binding MarkResult}" Width="Auto" />
+                                                <DataGridTextColumn Header="读码结果" Binding="{Binding ReadResult}" Width="Auto" />
+                                                <DataGridTextColumn Header="总结果" Binding="{Binding Overall}" Width="Auto" />
+                                                <DataGridTextColumn Header="导通耐压结果" Binding="{Binding Withstand}" Width="Auto" />
+                                                <DataGridTextColumn Header="针高结果" Binding="{Binding PinHeight}" Width="Auto" />
+                                                <DataGridTextColumn Header="位置度结果" Binding="{Binding Position}" Width="Auto" />
+                                                <DataGridTextColumn Header="是否复检" Binding="{Binding IsRetest}" Width="Auto" />
+                                                <DataGridTextColumn Header="打码时间" Binding="{Binding MarkTime}" Width="Auto" />
+                                                <DataGridTextColumn Header="读码时间" Binding="{Binding ScanTime}" Width="Auto" />
+                                                <DataGridTextColumn Header="上针高 Pin1(mm)" Binding="{Binding Top1}" Width="Auto" />
+                                                <DataGridTextColumn Header="上针高 Pin2(mm)" Binding="{Binding Top2}" Width="Auto" />
+                                                <DataGridTextColumn Header="上针高 Pin3(mm)" Binding="{Binding Top3}" Width="Auto" />
+                                                <DataGridTextColumn Header="上针高 Pin4(mm)" Binding="{Binding Top4}" Width="Auto" />
+                                                <DataGridTextColumn Header="上针高 Pin5(mm)" Binding="{Binding Top5}" Width="Auto" />
+                                                <DataGridTextColumn Header="上针高 Pin6(mm)" Binding="{Binding Top6}" Width="Auto" />
+                                                <DataGridTextColumn Header="上针高 Pin7(mm)" Binding="{Binding Top7}" Width="Auto" />
+                                                <DataGridTextColumn Header="上针高 Pin8(mm)" Binding="{Binding Top8}" Width="Auto" />
+                                                <DataGridTextColumn Header="上针高 Pin9(mm)" Binding="{Binding Top9}" Width="Auto" />
+                                                <DataGridTextColumn Header="上针高 Pin10(mm)" Binding="{Binding Top10}" Width="Auto" />
+                                                <DataGridTextColumn Header="上针高 Pin11(mm)" Binding="{Binding Top11}" Width="Auto" />
+                                                <DataGridTextColumn Header="上针高 Pin12(mm)" Binding="{Binding Top12}" Width="Auto" />
+                                                <DataGridTextColumn Header="上针高 Pin13(mm)" Binding="{Binding Top13}" Width="Auto" />
+                                                <DataGridTextColumn Header="上针高 Pin14(mm)" Binding="{Binding Top14}" Width="Auto" />
+                                                <DataGridTextColumn Header="上针高 Pin15(mm)" Binding="{Binding Top15}" Width="Auto" />
+                                                <DataGridTextColumn Header="下针高 Pin1(mm)" Binding="{Binding Bottom1}" Width="Auto" />
+                                                <DataGridTextColumn Header="下针高 Pin2(mm)" Binding="{Binding Bottom2}" Width="Auto" />
+                                                <DataGridTextColumn Header="下针高 Pin3(mm)" Binding="{Binding Bottom3}" Width="Auto" />
+                                                <DataGridTextColumn Header="下针高 Pin4(mm)" Binding="{Binding Bottom4}" Width="Auto" />
+                                                <DataGridTextColumn Header="下针高 Pin5(mm)" Binding="{Binding Bottom5}" Width="Auto" />
+                                                <DataGridTextColumn Header="下针高 Pin6(mm)" Binding="{Binding Bottom6}" Width="Auto" />
+                                                <DataGridTextColumn Header="下针高 Pin7(mm)" Binding="{Binding Bottom7}" Width="Auto" />
+                                                <DataGridTextColumn Header="下针高 Pin8(mm)" Binding="{Binding Bottom8}" Width="Auto" />
+                                                <DataGridTextColumn Header="下针高 Pin9(mm)" Binding="{Binding Bottom9}" Width="Auto" />
+                                                <DataGridTextColumn Header="下针高 Pin10(mm)" Binding="{Binding Bottom10}" Width="Auto" />
+                                                <DataGridTextColumn Header="下针高 Pin11(mm)" Binding="{Binding Bottom11}" Width="Auto" />
+                                                <DataGridTextColumn Header="下针高 Pin12(mm)" Binding="{Binding Bottom12}" Width="Auto" />
+                                                <DataGridTextColumn Header="下针高 Pin13(mm)" Binding="{Binding Bottom13}" Width="Auto" />
+                                                <DataGridTextColumn Header="下针高 Pin14(mm)" Binding="{Binding Bottom14}" Width="Auto" />
+                                                <DataGridTextColumn Header="下针高 Pin15(mm)" Binding="{Binding Bottom15}" Width="Auto" />
+                                                <DataGridTextColumn Header="上位置度 PIN1_X" Binding="{Binding TopPosX1}" Width="Auto" />
+                                                <DataGridTextColumn Header="上位置度 PIN2_X" Binding="{Binding TopPosX2}" Width="Auto" />
+                                                <DataGridTextColumn Header="上位置度 PIN3_X" Binding="{Binding TopPosX3}" Width="Auto" />
+                                                <DataGridTextColumn Header="上位置度 PIN4_X" Binding="{Binding TopPosX4}" Width="Auto" />
+                                                <DataGridTextColumn Header="上位置度 PIN5_X" Binding="{Binding TopPosX5}" Width="Auto" />
+                                                <DataGridTextColumn Header="上位置度 PIN6_X" Binding="{Binding TopPosX6}" Width="Auto" />
+                                                <DataGridTextColumn Header="上位置度 PIN7_X" Binding="{Binding TopPosX7}" Width="Auto" />
+                                                <DataGridTextColumn Header="上位置度 PIN8_X" Binding="{Binding TopPosX8}" Width="Auto" />
+                                                <DataGridTextColumn Header="上位置度 PIN9_X" Binding="{Binding TopPosX9}" Width="Auto" />
+                                                <DataGridTextColumn Header="上位置度 PIN10_X" Binding="{Binding TopPosX10}" Width="Auto" />
+                                                <DataGridTextColumn Header="上位置度 PIN11_X" Binding="{Binding TopPosX11}" Width="Auto" />
+                                                <DataGridTextColumn Header="上位置度 PIN12_X" Binding="{Binding TopPosX12}" Width="Auto" />
+                                                <DataGridTextColumn Header="上位置度 PIN13_X" Binding="{Binding TopPosX13}" Width="Auto" />
+                                                <DataGridTextColumn Header="上位置度 PIN14_X" Binding="{Binding TopPosX14}" Width="Auto" />
+                                                <DataGridTextColumn Header="上位置度 PIN15_X" Binding="{Binding TopPosX15}" Width="Auto" />
+                                                <DataGridTextColumn Header="上位置度 PIN1_Y" Binding="{Binding TopPosY1}" Width="Auto" />
+                                                <DataGridTextColumn Header="上位置度 PIN2_Y" Binding="{Binding TopPosY2}" Width="Auto" />
+                                                <DataGridTextColumn Header="上位置度 PIN3_Y" Binding="{Binding TopPosY3}" Width="Auto" />
+                                                <DataGridTextColumn Header="上位置度 PIN4_Y" Binding="{Binding TopPosY4}" Width="Auto" />
+                                                <DataGridTextColumn Header="上位置度 PIN5_Y" Binding="{Binding TopPosY5}" Width="Auto" />
+                                                <DataGridTextColumn Header="上位置度 PIN6_Y" Binding="{Binding TopPosY6}" Width="Auto" />
+                                                <DataGridTextColumn Header="上位置度 PIN7_Y" Binding="{Binding TopPosY7}" Width="Auto" />
+                                                <DataGridTextColumn Header="上位置度 PIN8_Y" Binding="{Binding TopPosY8}" Width="Auto" />
+                                                <DataGridTextColumn Header="上位置度 PIN9_Y" Binding="{Binding TopPosY9}" Width="Auto" />
+                                                <DataGridTextColumn Header="上位置度 PIN10_Y" Binding="{Binding TopPosY10}" Width="Auto" />
+                                                <DataGridTextColumn Header="上位置度 PIN11_Y" Binding="{Binding TopPosY11}" Width="Auto" />
+                                                <DataGridTextColumn Header="上位置度 PIN12_Y" Binding="{Binding TopPosY12}" Width="Auto" />
+                                                <DataGridTextColumn Header="上位置度 PIN13_Y" Binding="{Binding TopPosY13}" Width="Auto" />
+                                                <DataGridTextColumn Header="上位置度 PIN14_Y" Binding="{Binding TopPosY14}" Width="Auto" />
+                                                <DataGridTextColumn Header="上位置度 PIN15_Y" Binding="{Binding TopPosY15}" Width="Auto" />
+                                                <DataGridTextColumn Header="下位置度 PIN1_X" Binding="{Binding BottomPosX1}" Width="Auto" />
+                                                <DataGridTextColumn Header="下位置度 PIN2_X" Binding="{Binding BottomPosX2}" Width="Auto" />
+                                                <DataGridTextColumn Header="下位置度 PIN3_X" Binding="{Binding BottomPosX3}" Width="Auto" />
+                                                <DataGridTextColumn Header="下位置度 PIN4_X" Binding="{Binding BottomPosX4}" Width="Auto" />
+                                                <DataGridTextColumn Header="下位置度 PIN5_X" Binding="{Binding BottomPosX5}" Width="Auto" />
+                                                <DataGridTextColumn Header="下位置度 PIN6_X" Binding="{Binding BottomPosX6}" Width="Auto" />
+                                                <DataGridTextColumn Header="下位置度 PIN7_X" Binding="{Binding BottomPosX7}" Width="Auto" />
+                                                <DataGridTextColumn Header="下位置度 PIN8_X" Binding="{Binding BottomPosX8}" Width="Auto" />
+                                                <DataGridTextColumn Header="下位置度 PIN9_X" Binding="{Binding BottomPosX9}" Width="Auto" />
+                                                <DataGridTextColumn Header="下位置度 PIN10_X" Binding="{Binding BottomPosX10}" Width="Auto" />
+                                                <DataGridTextColumn Header="下位置度 PIN11_X" Binding="{Binding BottomPosX11}" Width="Auto" />
+                                                <DataGridTextColumn Header="下位置度 PIN12_X" Binding="{Binding BottomPosX12}" Width="Auto" />
+                                                <DataGridTextColumn Header="下位置度 PIN13_X" Binding="{Binding BottomPosX13}" Width="Auto" />
+                                                <DataGridTextColumn Header="下位置度 PIN14_X" Binding="{Binding BottomPosX14}" Width="Auto" />
+                                                <DataGridTextColumn Header="下位置度 PIN15_X" Binding="{Binding BottomPosX15}" Width="Auto" />
+                                                <DataGridTextColumn Header="下位置度 PIN1_Y" Binding="{Binding BottomPosY1}" Width="Auto" />
+                                                <DataGridTextColumn Header="下位置度 PIN2_Y" Binding="{Binding BottomPosY2}" Width="Auto" />
+                                                <DataGridTextColumn Header="下位置度 PIN3_Y" Binding="{Binding BottomPosY3}" Width="Auto" />
+                                                <DataGridTextColumn Header="下位置度 PIN4_Y" Binding="{Binding BottomPosY4}" Width="Auto" />
+                                                <DataGridTextColumn Header="下位置度 PIN5_Y" Binding="{Binding BottomPosY5}" Width="Auto" />
+                                                <DataGridTextColumn Header="下位置度 PIN6_Y" Binding="{Binding BottomPosY6}" Width="Auto" />
+                                                <DataGridTextColumn Header="下位置度 PIN7_Y" Binding="{Binding BottomPosY7}" Width="Auto" />
+                                                <DataGridTextColumn Header="下位置度 PIN8_Y" Binding="{Binding BottomPosY8}" Width="Auto" />
+                                                <DataGridTextColumn Header="下位置度 PIN9_Y" Binding="{Binding BottomPosY9}" Width="Auto" />
+                                                <DataGridTextColumn Header="下位置度 PIN10_Y" Binding="{Binding BottomPosY10}" Width="Auto" />
+                                                <DataGridTextColumn Header="下位置度 PIN11_Y" Binding="{Binding BottomPosY11}" Width="Auto" />
+                                                <DataGridTextColumn Header="下位置度 PIN12_Y" Binding="{Binding BottomPosY12}" Width="Auto" />
+                                                <DataGridTextColumn Header="下位置度 PIN13_Y" Binding="{Binding BottomPosY13}" Width="Auto" />
+                                                <DataGridTextColumn Header="下位置度 PIN14_Y" Binding="{Binding BottomPosY14}" Width="Auto" />
+                                                <DataGridTextColumn Header="下位置度 PIN15_Y" Binding="{Binding BottomPosY15}" Width="Auto" />
+                    </DataGrid.Columns>
+                </DataGrid>
+            </LinearPanel>
+        </Border>
+        <!-- 数据追溯视图 -->
+        <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="2" CornerRadius="8" Padding="30" Background="{DynamicResource CardBackgroundBrush}"
+                IsVisible="{Binding ShowTraceView}">
+            <LinearPanel Orientation="Vertical" Spacing="20">
+                <TextBlock Text="数据追溯查询" FontSize="20" FontWeight="Bold" />
+
+                <!-- 追溯查询输入区 -->
+                <LinearPanel Orientation="Horizontal" Spacing="10">
+                    <Label Content="产品码：" VerticalAlignment="Center" />
+                    <TextBox Text="{Binding TraceProductCode}" MinWidth="300" Watermark="请输入要追溯的产品码" VerticalAlignment="Center" />
+                    <Button Content="追溯查询" Command="{Binding TraceQueryCommand}" VerticalAlignment="Center" />
+                    <TextBlock Text="按产品码精确检索检测记录（同码仅保留最新一份，含全部测量字段）"
+                               VerticalAlignment="Center" Opacity="0.6" Margin="10,0,0,0" />
+                </LinearPanel>
+
+                <!-- 追溯结果（完整字段） -->
+                <DataGrid ItemsSource="{Binding TraceResult}"
+                          AutoGenerateColumns="False" IsReadOnly="True"
+                          GridLinesVisibility="All" BorderThickness="1"
+                          BorderBrush="{DynamicResource BorderBrush}"
+                          CanUserReorderColumns="False" CanUserResizeColumns="True"
+                          CanUserSortColumns="False" HeadersVisibility="Column"
+                          RowHeight="26" MinHeight="120" MaxHeight="600"
+                          ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                          ScrollViewer.VerticalScrollBarVisibility="Auto">
+                    <DataGrid.Columns>
+                                                <DataGridTextColumn Header="下料时间" Binding="{Binding Time}" Width="Auto" />
+                                                <DataGridTextColumn Header="产品码" Binding="{Binding ProductCode}" Width="Auto" />
+                                                <DataGridTextColumn Header="打码结果" Binding="{Binding MarkResult}" Width="Auto" />
+                                                <DataGridTextColumn Header="读码结果" Binding="{Binding ReadResult}" Width="Auto" />
+                                                <DataGridTextColumn Header="总结果" Binding="{Binding Overall}" Width="Auto" />
+                                                <DataGridTextColumn Header="导通耐压结果" Binding="{Binding Withstand}" Width="Auto" />
+                                                <DataGridTextColumn Header="针高结果" Binding="{Binding PinHeight}" Width="Auto" />
+                                                <DataGridTextColumn Header="位置度结果" Binding="{Binding Position}" Width="Auto" />
+                                                <DataGridTextColumn Header="是否复检" Binding="{Binding IsRetest}" Width="Auto" />
+                                                <DataGridTextColumn Header="打码时间" Binding="{Binding MarkTime}" Width="Auto" />
+                                                <DataGridTextColumn Header="读码时间" Binding="{Binding ScanTime}" Width="Auto" />
+                                                <DataGridTextColumn Header="上针高 Pin1(mm)" Binding="{Binding Top1}" Width="Auto" />
+                                                <DataGridTextColumn Header="上针高 Pin2(mm)" Binding="{Binding Top2}" Width="Auto" />
+                                                <DataGridTextColumn Header="上针高 Pin3(mm)" Binding="{Binding Top3}" Width="Auto" />
+                                                <DataGridTextColumn Header="上针高 Pin4(mm)" Binding="{Binding Top4}" Width="Auto" />
+                                                <DataGridTextColumn Header="上针高 Pin5(mm)" Binding="{Binding Top5}" Width="Auto" />
+                                                <DataGridTextColumn Header="上针高 Pin6(mm)" Binding="{Binding Top6}" Width="Auto" />
+                                                <DataGridTextColumn Header="上针高 Pin7(mm)" Binding="{Binding Top7}" Width="Auto" />
+                                                <DataGridTextColumn Header="上针高 Pin8(mm)" Binding="{Binding Top8}" Width="Auto" />
+                                                <DataGridTextColumn Header="上针高 Pin9(mm)" Binding="{Binding Top9}" Width="Auto" />
+                                                <DataGridTextColumn Header="上针高 Pin10(mm)" Binding="{Binding Top10}" Width="Auto" />
+                                                <DataGridTextColumn Header="上针高 Pin11(mm)" Binding="{Binding Top11}" Width="Auto" />
+                                                <DataGridTextColumn Header="上针高 Pin12(mm)" Binding="{Binding Top12}" Width="Auto" />
+                                                <DataGridTextColumn Header="上针高 Pin13(mm)" Binding="{Binding Top13}" Width="Auto" />
+                                                <DataGridTextColumn Header="上针高 Pin14(mm)" Binding="{Binding Top14}" Width="Auto" />
+                                                <DataGridTextColumn Header="上针高 Pin15(mm)" Binding="{Binding Top15}" Width="Auto" />
+                                                <DataGridTextColumn Header="下针高 Pin1(mm)" Binding="{Binding Bottom1}" Width="Auto" />
+                                                <DataGridTextColumn Header="下针高 Pin2(mm)" Binding="{Binding Bottom2}" Width="Auto" />
+                                                <DataGridTextColumn Header="下针高 Pin3(mm)" Binding="{Binding Bottom3}" Width="Auto" />
+                                                <DataGridTextColumn Header="下针高 Pin4(mm)" Binding="{Binding Bottom4}" Width="Auto" />
+                                                <DataGridTextColumn Header="下针高 Pin5(mm)" Binding="{Binding Bottom5}" Width="Auto" />
+                                                <DataGridTextColumn Header="下针高 Pin6(mm)" Binding="{Binding Bottom6}" Width="Auto" />
+                                                <DataGridTextColumn Header="下针高 Pin7(mm)" Binding="{Binding Bottom7}" Width="Auto" />
+                                                <DataGridTextColumn Header="下针高 Pin8(mm)" Binding="{Binding Bottom8}" Width="Auto" />
+                                                <DataGridTextColumn Header="下针高 Pin9(mm)" Binding="{Binding Bottom9}" Width="Auto" />
+                                                <DataGridTextColumn Header="下针高 Pin10(mm)" Binding="{Binding Bottom10}" Width="Auto" />
+                                                <DataGridTextColumn Header="下针高 Pin11(mm)" Binding="{Binding Bottom11}" Width="Auto" />
+                                                <DataGridTextColumn Header="下针高 Pin12(mm)" Binding="{Binding Bottom12}" Width="Auto" />
+                                                <DataGridTextColumn Header="下针高 Pin13(mm)" Binding="{Binding Bottom13}" Width="Auto" />
+                                                <DataGridTextColumn Header="下针高 Pin14(mm)" Binding="{Binding Bottom14}" Width="Auto" />
+                                                <DataGridTextColumn Header="下针高 Pin15(mm)" Binding="{Binding Bottom15}" Width="Auto" />
+                                                <DataGridTextColumn Header="上位置度 PIN1_X" Binding="{Binding TopPosX1}" Width="Auto" />
+                                                <DataGridTextColumn Header="上位置度 PIN2_X" Binding="{Binding TopPosX2}" Width="Auto" />
+                                                <DataGridTextColumn Header="上位置度 PIN3_X" Binding="{Binding TopPosX3}" Width="Auto" />
+                                                <DataGridTextColumn Header="上位置度 PIN4_X" Binding="{Binding TopPosX4}" Width="Auto" />
+                                                <DataGridTextColumn Header="上位置度 PIN5_X" Binding="{Binding TopPosX5}" Width="Auto" />
+                                                <DataGridTextColumn Header="上位置度 PIN6_X" Binding="{Binding TopPosX6}" Width="Auto" />
+                                                <DataGridTextColumn Header="上位置度 PIN7_X" Binding="{Binding TopPosX7}" Width="Auto" />
+                                                <DataGridTextColumn Header="上位置度 PIN8_X" Binding="{Binding TopPosX8}" Width="Auto" />
+                                                <DataGridTextColumn Header="上位置度 PIN9_X" Binding="{Binding TopPosX9}" Width="Auto" />
+                                                <DataGridTextColumn Header="上位置度 PIN10_X" Binding="{Binding TopPosX10}" Width="Auto" />
+                                                <DataGridTextColumn Header="上位置度 PIN11_X" Binding="{Binding TopPosX11}" Width="Auto" />
+                                                <DataGridTextColumn Header="上位置度 PIN12_X" Binding="{Binding TopPosX12}" Width="Auto" />
+                                                <DataGridTextColumn Header="上位置度 PIN13_X" Binding="{Binding TopPosX13}" Width="Auto" />
+                                                <DataGridTextColumn Header="上位置度 PIN14_X" Binding="{Binding TopPosX14}" Width="Auto" />
+                                                <DataGridTextColumn Header="上位置度 PIN15_X" Binding="{Binding TopPosX15}" Width="Auto" />
+                                                <DataGridTextColumn Header="上位置度 PIN1_Y" Binding="{Binding TopPosY1}" Width="Auto" />
+                                                <DataGridTextColumn Header="上位置度 PIN2_Y" Binding="{Binding TopPosY2}" Width="Auto" />
+                                                <DataGridTextColumn Header="上位置度 PIN3_Y" Binding="{Binding TopPosY3}" Width="Auto" />
+                                                <DataGridTextColumn Header="上位置度 PIN4_Y" Binding="{Binding TopPosY4}" Width="Auto" />
+                                                <DataGridTextColumn Header="上位置度 PIN5_Y" Binding="{Binding TopPosY5}" Width="Auto" />
+                                                <DataGridTextColumn Header="上位置度 PIN6_Y" Binding="{Binding TopPosY6}" Width="Auto" />
+                                                <DataGridTextColumn Header="上位置度 PIN7_Y" Binding="{Binding TopPosY7}" Width="Auto" />
+                                                <DataGridTextColumn Header="上位置度 PIN8_Y" Binding="{Binding TopPosY8}" Width="Auto" />
+                                                <DataGridTextColumn Header="上位置度 PIN9_Y" Binding="{Binding TopPosY9}" Width="Auto" />
+                                                <DataGridTextColumn Header="上位置度 PIN10_Y" Binding="{Binding TopPosY10}" Width="Auto" />
+                                                <DataGridTextColumn Header="上位置度 PIN11_Y" Binding="{Binding TopPosY11}" Width="Auto" />
+                                                <DataGridTextColumn Header="上位置度 PIN12_Y" Binding="{Binding TopPosY12}" Width="Auto" />
+                                                <DataGridTextColumn Header="上位置度 PIN13_Y" Binding="{Binding TopPosY13}" Width="Auto" />
+                                                <DataGridTextColumn Header="上位置度 PIN14_Y" Binding="{Binding TopPosY14}" Width="Auto" />
+                                                <DataGridTextColumn Header="上位置度 PIN15_Y" Binding="{Binding TopPosY15}" Width="Auto" />
+                                                <DataGridTextColumn Header="下位置度 PIN1_X" Binding="{Binding BottomPosX1}" Width="Auto" />
+                                                <DataGridTextColumn Header="下位置度 PIN2_X" Binding="{Binding BottomPosX2}" Width="Auto" />
+                                                <DataGridTextColumn Header="下位置度 PIN3_X" Binding="{Binding BottomPosX3}" Width="Auto" />
+                                                <DataGridTextColumn Header="下位置度 PIN4_X" Binding="{Binding BottomPosX4}" Width="Auto" />
+                                                <DataGridTextColumn Header="下位置度 PIN5_X" Binding="{Binding BottomPosX5}" Width="Auto" />
+                                                <DataGridTextColumn Header="下位置度 PIN6_X" Binding="{Binding BottomPosX6}" Width="Auto" />
+                                                <DataGridTextColumn Header="下位置度 PIN7_X" Binding="{Binding BottomPosX7}" Width="Auto" />
+                                                <DataGridTextColumn Header="下位置度 PIN8_X" Binding="{Binding BottomPosX8}" Width="Auto" />
+                                                <DataGridTextColumn Header="下位置度 PIN9_X" Binding="{Binding BottomPosX9}" Width="Auto" />
+                                                <DataGridTextColumn Header="下位置度 PIN10_X" Binding="{Binding BottomPosX10}" Width="Auto" />
+                                                <DataGridTextColumn Header="下位置度 PIN11_X" Binding="{Binding BottomPosX11}" Width="Auto" />
+                                                <DataGridTextColumn Header="下位置度 PIN12_X" Binding="{Binding BottomPosX12}" Width="Auto" />
+                                                <DataGridTextColumn Header="下位置度 PIN13_X" Binding="{Binding BottomPosX13}" Width="Auto" />
+                                                <DataGridTextColumn Header="下位置度 PIN14_X" Binding="{Binding BottomPosX14}" Width="Auto" />
+                                                <DataGridTextColumn Header="下位置度 PIN15_X" Binding="{Binding BottomPosX15}" Width="Auto" />
+                                                <DataGridTextColumn Header="下位置度 PIN1_Y" Binding="{Binding BottomPosY1}" Width="Auto" />
+                                                <DataGridTextColumn Header="下位置度 PIN2_Y" Binding="{Binding BottomPosY2}" Width="Auto" />
+                                                <DataGridTextColumn Header="下位置度 PIN3_Y" Binding="{Binding BottomPosY3}" Width="Auto" />
+                                                <DataGridTextColumn Header="下位置度 PIN4_Y" Binding="{Binding BottomPosY4}" Width="Auto" />
+                                                <DataGridTextColumn Header="下位置度 PIN5_Y" Binding="{Binding BottomPosY5}" Width="Auto" />
+                                                <DataGridTextColumn Header="下位置度 PIN6_Y" Binding="{Binding BottomPosY6}" Width="Auto" />
+                                                <DataGridTextColumn Header="下位置度 PIN7_Y" Binding="{Binding BottomPosY7}" Width="Auto" />
+                                                <DataGridTextColumn Header="下位置度 PIN8_Y" Binding="{Binding BottomPosY8}" Width="Auto" />
+                                                <DataGridTextColumn Header="下位置度 PIN9_Y" Binding="{Binding BottomPosY9}" Width="Auto" />
+                                                <DataGridTextColumn Header="下位置度 PIN10_Y" Binding="{Binding BottomPosY10}" Width="Auto" />
+                                                <DataGridTextColumn Header="下位置度 PIN11_Y" Binding="{Binding BottomPosY11}" Width="Auto" />
+                                                <DataGridTextColumn Header="下位置度 PIN12_Y" Binding="{Binding BottomPosY12}" Width="Auto" />
+                                                <DataGridTextColumn Header="下位置度 PIN13_Y" Binding="{Binding BottomPosY13}" Width="Auto" />
+                                                <DataGridTextColumn Header="下位置度 PIN14_Y" Binding="{Binding BottomPosY14}" Width="Auto" />
+                                                <DataGridTextColumn Header="下位置度 PIN15_Y" Binding="{Binding BottomPosY15}" Width="Auto" />
+                    </DataGrid.Columns>
+                </DataGrid>
+            </LinearPanel>
+        </Border>
+    </LinearPanel>
+</UiView>

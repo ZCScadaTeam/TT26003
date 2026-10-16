@@ -1,0 +1,25 @@
+<Application
+	xmlns="https://github.com/avaloniaui"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:fluentAvalonia="using:FluentAvalonia.Styling"
+	x:Class="AppZC.UI.AvaApp"
+	RequestedThemeVariant="Dark">
+	<Application.Resources>
+		<ResourceDictionary>
+			<ResourceDictionary.MergedDictionaries>
+				<ResourceInclude Source="/UI/Assets/Icons.axaml" />
+				<ResourceInclude Source="avares://ZC.Core.UI.Theme/_index.axaml" />
+				<ResourceInclude Source="/UI/Styles/FluentColors.axaml" />
+			</ResourceDictionary.MergedDictionaries>
+			<EnumEqualsConverter x:Key="EnumEqualsConverter" />
+		</ResourceDictionary>
+	</Application.Resources>
+	<Application.Styles>
+		<StyleInclude Source="avares://IconPacks.Avalonia/Icons.axaml" />
+		<UiTheme Locale="zh-CN" />
+		<StyleInclude Source="avares://ZC.Core.UI.Theme/Styles/_index.axaml" />
+		<StyleInclude Source="/UI/Styles/FluentCard.axaml" />
+		<StyleInclude Source="/UI/Styles/FluentDataGrid.axaml" />
+		<StyleInclude Source="/UI/Styles/FluentControls.axaml" />
+	</Application.Styles>
+</Application>

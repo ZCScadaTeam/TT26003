@@ -1,0 +1,136 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="GratingSensor.Lab.UI.MainWindow"
+        Title="GC-CT 光栅位移传感器 · 实验台 (UI)"
+        Width="980" Height="740">
+  <DockPanel Margin="12">
+    <!-- 连接面板 -->
+    <Border DockPanel.Dock="Top" BorderBrush="#888" BorderThickness="1" CornerRadius="6" Padding="10">
+      <StackPanel Orientation="Horizontal" Spacing="10">
+        <TextBlock Text="模式" VerticalAlignment="Center"/>
+        <ComboBox x:Name="cmbMode" Width="120" SelectedIndex="0">
+          <ComboBoxItem>模拟设备</ComboBoxItem>
+          <ComboBoxItem>真实串口</ComboBoxItem>
+        </ComboBox>
+        <TextBlock Text="端口" VerticalAlignment="Center"/>
+        <TextBox x:Name="txtPort" Width="80" Text="COM3"/>
+        <TextBlock Text="波特率" VerticalAlignment="Center"/>
+        <NumericUpDown x:Name="numBaud" Width="90" Value="38400" Minimum="1200" Maximum="115200" FormatString="0"/>
+        <TextBlock Text="地址" VerticalAlignment="Center"/>
+        <NumericUpDown x:Name="numAddr" Width="70" Value="1" Minimum="0" Maximum="247" FormatString="0"/>
+        <TextBlock Text="量程档" VerticalAlignment="Center"/>
+        <ComboBox x:Name="cmbDivisor" Width="110" SelectedIndex="0">
+          <ComboBoxItem>万分(÷10000)</ComboBoxItem>
+          <ComboBoxItem>千分(÷1000)</ComboBoxItem>
+        </ComboBox>
+        <Button x:Name="btnConnect" Content="连接" Click="BtnConnect_Click"/>
+        <Button x:Name="btnSelfTest" Content="协议自测" Click="BtnSelfTest_Click"/>
+      </StackPanel>
+    </Border>
+
+    <!-- 日志 -->
+    <TextBox x:Name="txtLog" DockPanel.Dock="Bottom" Height="120" IsReadOnly="True"
+             FontFamily="Consolas,Monospace" TextWrapping="Wrap" Margin="0,8,0,0"/>
+
+    <!-- 主体 -->
+    <ScrollViewer>
+      <StackPanel Spacing="10">
+        <Border BorderBrush="#b0b0b0" BorderThickness="1" CornerRadius="6" Padding="10">
+          <StackPanel Spacing="6">
+            <TextBlock Text="实时位移" FontWeight="Bold" FontSize="13"/>
+            <StackPanel Orientation="Horizontal" Spacing="16">
+              <TextBlock x:Name="tbDisp" Text="位移: - mm" FontSize="22" FontWeight="Bold"/>
+              <Button x:Name="btnReadDisp" Content="读取位移" Click="BtnReadDisp_Click"/>
+              <CheckBox x:Name="chkPoll" Content="连续采样(200ms)" VerticalAlignment="Center"/>
+              <Button x:Name="btnReadMax" Content="读最大" Click="BtnReadExtrema_Click" Tag="max"/>
+              <Button x:Name="btnReadMin" Content="读最小" Click="BtnReadExtrema_Click" Tag="min"/>
+              <Button x:Name="btnReadRange" Content="读极差" Click="BtnReadExtrema_Click" Tag="range"/>
+            </StackPanel>
+            <ListBox x:Name="lbSamples" Height="120"/>
+          </StackPanel>
+        </Border>
+
+        <Border BorderBrush="#b0b0b0" BorderThickness="1" CornerRadius="6" Padding="10">
+          <StackPanel Spacing="8">
+            <TextBlock Text="功能控制字" FontWeight="Bold" FontSize="13"/>
+            <WrapPanel Orientation="Horizontal">
+              <WrapPanel.Styles>
+                <Style Selector="WrapPanel > Control">
+                  <Setter Property="Margin" Value="2"/>
+                </Style>
+              </WrapPanel.Styles>
+              <Button Content="清零" Click="BtnFunc_Click" Tag="0xAB56"/>
+              <Button Content="公制" Click="BtnFunc_Click" Tag="0x0001"/>
+              <Button Content="英制" Click="BtnFunc_Click" Tag="0x0002"/>
+              <Button Content="正向" Click="BtnFunc_Click" Tag="0x0003"/>
+              <Button Content="反向" Click="BtnFunc_Click" Tag="0x0004"/>
+              <Button Content="保持" Click="BtnFunc_Click" Tag="0x0005"/>
+              <Button Content="释放" Click="BtnFunc_Click" Tag="0x0006"/>
+              <Button Content="重开极值" Click="BtnFunc_Click" Tag="0x0007"/>
+              <Button Content="正常模式" Click="BtnFunc_Click" Tag="0x0008"/>
+              <Button Content="极值模式" Click="BtnFunc_Click" Tag="0x0009"/>
+            </WrapPanel>
+          </StackPanel>
+        </Border>
+
+        <Border BorderBrush="#b0b0b0" BorderThickness="1" CornerRadius="6" Padding="10">
+          <StackPanel Spacing="8">
+            <TextBlock Text="预设 / 上限 / 下限 (mm)" FontWeight="Bold" FontSize="13"/>
+            <WrapPanel Orientation="Horizontal">
+              <WrapPanel.Styles>
+                <Style Selector="WrapPanel > Control">
+                  <Setter Property="Margin" Value="2"/>
+                </Style>
+              </WrapPanel.Styles>
+              <TextBlock Text="预设" VerticalAlignment="Center"/>
+              <NumericUpDown x:Name="numPreset" Width="90" Value="2.0" Increment="0.1" FormatString="F3"/>
+              <TextBlock Text="上限" VerticalAlignment="Center"/>
+              <NumericUpDown x:Name="numUpper" Width="90" Value="5.0" Increment="0.1" FormatString="F3"/>
+              <TextBlock Text="下限" VerticalAlignment="Center"/>
+              <NumericUpDown x:Name="numLower" Width="90" Value="1.0" Increment="0.1" FormatString="F3"/>
+              <Button x:Name="btnWritePreset" Content="写入" Click="BtnWritePreset_Click"/>
+              <Button x:Name="btnReadPreset" Content="读取" Click="BtnReadPreset_Click"/>
+            </WrapPanel>
+          </StackPanel>
+        </Border>
+
+        <Border BorderBrush="#b0b0b0" BorderThickness="1" CornerRadius="6" Padding="10">
+          <StackPanel Spacing="8">
+            <TextBlock Text="参数配置" FontWeight="Bold" FontSize="13"/>
+            <WrapPanel Orientation="Horizontal">
+              <WrapPanel.Styles>
+                <Style Selector="WrapPanel > Control">
+                  <Setter Property="Margin" Value="2"/>
+                </Style>
+              </WrapPanel.Styles>
+              <TextBlock Text="新地址" VerticalAlignment="Center"/>
+              <NumericUpDown x:Name="numNewAddr" Width="70" Value="1" Minimum="1" Maximum="247" FormatString="0"/>
+              <Button x:Name="btnSetAddr" Content="改地址" Click="BtnSetAddr_Click"/>
+              <TextBlock Text="波特" VerticalAlignment="Center"/>
+              <ComboBox x:Name="cmbBaud" Width="100" SelectedIndex="2">
+                <ComboBoxItem>9600</ComboBoxItem>
+                <ComboBoxItem>19200</ComboBoxItem>
+                <ComboBoxItem>38400</ComboBoxItem>
+                <ComboBoxItem>57600</ComboBoxItem>
+                <ComboBoxItem>115200</ComboBoxItem>
+                <ComboBoxItem>4800</ComboBoxItem>
+              </ComboBox>
+              <Button x:Name="btnSetBaud" Content="改波特" Click="BtnSetBaud_Click"/>
+              <TextBlock Text="校验/停止" VerticalAlignment="Center"/>
+              <ComboBox x:Name="cmbParity" Width="120" SelectedIndex="0">
+                <ComboBoxItem>无校验/2停</ComboBoxItem>
+                <ComboBoxItem>奇/1停</ComboBoxItem>
+                <ComboBoxItem>偶/1停</ComboBoxItem>
+                <ComboBoxItem>无校验/1停</ComboBoxItem>
+                <ComboBoxItem>奇/2停</ComboBoxItem>
+                <ComboBoxItem>偶/2停</ComboBoxItem>
+              </ComboBox>
+              <Button x:Name="btnSetParity" Content="改校验" Click="BtnSetParity_Click"/>
+              <Button x:Name="btnReadInternal" Content="广播读内部参数" Click="BtnReadInternal_Click"/>
+            </WrapPanel>
+          </StackPanel>
+        </Border>
+      </StackPanel>
+    </ScrollViewer>
+  </DockPanel>
+</Window>

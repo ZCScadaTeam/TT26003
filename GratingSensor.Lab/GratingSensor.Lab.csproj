@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>GratingSensor.Lab</AssemblyName>
+    <RootNamespace>GratingSensor.Lab</RootNamespace>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <!--
+    真实 RS232 支持说明（与 RJ6836H.Lab 一致）：
+    默认不引用 System.IO.Ports（保证离线/无硬件也能编译运行）。
+    若要接入真实串口，请：
+      1) 在下面取消注释 PackageReference
+      2) 在 Transport/SerialTransport.cs 顶部加 #define REAL_SERIAL
+    -->
+  <ItemGroup>
+    <PackageReference Include="HslCommunication" Version="12.9.1" />
+    <PackageReference Include="System.IO.Ports" Version="10.0.0" />
+  </ItemGroup>
+
+</Project>

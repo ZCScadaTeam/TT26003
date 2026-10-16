@@ -1,0 +1,81 @@
+{
+  "Database": {
+    "DbType": "Sqlite",
+    "ConnectionString": "DataSource=AppData/THA26003.db",
+    "IsAutoCloseConnection": true
+  },
+
+  // ===== PLC 通讯配置（THA26003 ModbusTCP，%MW 保持寄存器）=====
+  "PlcIpAddress": "127.0.0.1",
+  "PlcPort": 502,
+  // 汇川 PLC 系列（InovanceTcpNet.Series）：AM / H3U / H5U / Easy / EVO
+  "InovanceSeries": "AM",
+  // 设备地址前缀：汇川软元件名（默认 M，%MW10500 → M10500 → Modbus 寄存器 10500）；清空 = 纯数字 Modbus 地址
+  "PlcAddressPrefix": "MW",
+  // Modbus 地址映射规则（Rev.2 地址全部 ≤65535，默认留空 = 直传）
+  "ModbusAddressRules": [],
+
+  // ===== 打码站（大族激光 TCP/IP）=====
+  // LaserMode: Tcp=真机 / Mock=模拟器（默认 Mock，脱机即可跑通整链）
+  "LaserMode": "Mock",
+  "LaserIp": "192.168.250.100",
+  "LaserPort": 1024,
+  // 指令模板：{content} 为占位符。留空 = 协议尚未落地（打码判 MES 异常）
+  "LaserCommandTemplate": "",
+  "LaserOkKeyword": "OK",
+  // 从回执提取打标内容的正则（第 1 捕获组）。留空 = 不做闭环内容核对
+  "LaserEchoRegex": "",
+  "LaserReplyTerminator": "",
+  "LaserEncoding": "ASCII",
+  "LaserTimeoutMs": 8000,
+  "LaserConnectTimeoutMs": 3000,
+  "LaserKeepAlive": true,
+  "LaserMockDelayMs": 200,
+  // 打标内容来源：Auto=纯时间码自生成 / Plc=用 %MW97540 PLC 附带内容
+  "MarkContentSource": "Auto",
+
+  // ===== 码规则（纯时间码）=====
+  "CodeDateFormat": "yyMMddHHmmss",
+  "CodeLength": 12,
+  "CodeTimeWindowMinutes": 10,
+  "DuplicateCheckScope": "All",
+  "WipTimeoutHours": 2,
+  "AllowUnregisteredCode": false,
+  "CodeMaxWaitMs": 3000,
+
+  // ===== 读码站（基恩士 SR-1000 TCP/IP）=====
+  // ScannerMode: Trigger=软触发 / Push=硬触发推送 / Mock=模拟器
+  "ScannerMode": "Mock",
+  "ScannerIp": "192.168.250.101",
+  "ScannerPort": 9004,
+  "ScannerTriggerCmd": "",
+  "ScannerStopCmd": "",
+  "ScannerCommandEnd": "\r",
+  "ScannerTerminator": "\r",
+  "ScannerDataRegex": "",
+  "ScannerEncoding": "ASCII",
+  "ScannerTimeoutMs": 5000,
+  "ScannerConnectTimeoutMs": 3000,
+  "ScannerKeepAlive": true,
+  "ScannerMockDelayMs": 200,
+
+  // ===== 数值口径 =====
+  // 针高：PLC 侧 DINT（32 位整数，÷1000 显示）→ Int32Div1000（高字在前，默认）/ Int32SwappedDiv1000
+  "PinHeightFormat": "Int32Div1000",
+  // 位置度：PLC 侧 REAL（32 位浮点）→ FloatCdab（默认）/ FloatAbcd
+  "PositionFormat": "FloatCdab",
+
+  "TaskServiceHostOptions": {
+    "MaxRemainStartCount": -1,
+    "EnableAutoRestart": true,
+    "IsUseThreadLongRunningMode": false
+  },
+
+  "GarnetServer": {
+    "Port": 1234,
+    "Address": "127.0.0.1",
+    "MemorySize": "2g"
+  },
+
+  "LogFilePath": "D:\\Logs\\DXX"
+}

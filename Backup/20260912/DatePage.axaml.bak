@@ -1,0 +1,299 @@
+<UiView xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:lvc="using:LiveChartsCore.SkiaSharpView.Avalonia"
+        xmlns:pages="clr-namespace:AppZC.UI.Pages"
+        x:Class="AppZC.UI.Pages.DatePage"
+        x:DataType="pages:DateVM">
+    <LinearPanel Orientation="Vertical" Padding="20" Spacing="20">
+        <!-- 时间选择区域 -->
+        <Grid>
+            <LinearPanel Orientation="Horizontal" Spacing="15">
+                <Label Content="统计方式：" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                <ComboBox MinWidth="150" SelectedItem="{Binding SelectedTimeRangeTypeStr}">
+                    <ComboBox.Items>
+                        <x:String>按小时</x:String>
+                        <x:String>按班组</x:String>
+                        <x:String>按天</x:String>
+                    </ComboBox.Items>
+                </ComboBox>
+                
+                <CheckBox Content="图表视图" IsChecked="{Binding ShowChartView}" Margin="20,0,0,0" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                <CheckBox Content="表格视图" IsChecked="{Binding ShowTableView}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                <CheckBox Content="详细数据" IsChecked="{Binding ShowDetailView}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                <CheckBox Content="数据追溯" IsChecked="{Binding ShowTraceView}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                
+                <!-- 表格/详细视图的日期选择（追溯视图按产品码检索，无需日期） -->
+                <StackPanel Orientation="Horizontal" Spacing="5" IsVisible="{Binding !ShowTraceView}">
+                    <Label Content="选择日期：" VerticalAlignment="Center" IsVisible="{Binding !ShowChartView}" Margin="20,0,0,0" />
+                    <DatePicker SelectedDate="{Binding SelectedDate}" IsVisible="{Binding !ShowChartView}" />
+                </StackPanel>
+            </LinearPanel>
+            
+            <LinearPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
+                <Button Content="查询" Command="{Binding QueryCommand}" />
+            </LinearPanel>
+        </Grid>
+        
+        <!-- LiveCharts 图表 -->
+        <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="2" CornerRadius="8" Padding="30" Background="{DynamicResource CardBackgroundBrush}"
+                IsVisible="{Binding ShowChartView}">
+            <LinearPanel Orientation="Vertical" Spacing="20">
+                <TextBlock Text="数据概览柱状图" FontSize="20" FontWeight="Bold" HorizontalAlignment="Center" />
+                
+                <!-- LiveCharts 柱状图 -->
+                <lvc:CartesianChart Series="{Binding Series}"
+                                    XAxes="{Binding XAxes}"
+                                    YAxes="{Binding YAxes}"
+                                    LegendTextPaint="{Binding LegendTextPaint}"
+                                    LegendTextSize="14"
+                                    TooltipTextPaint="{Binding TooltipTextPaint}"
+                                    TooltipBackgroundPaint="{Binding TooltipBackgroundPaint}"
+                                    TooltipTextSize="14"
+                                    Height="500"
+                                    LegendPosition="Top" />
+            </LinearPanel>
+        </Border>
+        
+        <!-- 表格视图 -->
+        <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="2" CornerRadius="8" Padding="30" Background="{DynamicResource CardBackgroundBrush}"
+                IsVisible="{Binding ShowTableView}">
+            <LinearPanel Orientation="Vertical" Spacing="20">
+                <TextBlock Text="数据概览表格" FontSize="20" FontWeight="Bold" HorizontalAlignment="Center" />
+                
+                <!-- 左右两列表格布局 -->
+                <Grid ColumnDefinitions="*,20,*">
+                    <!-- 左侧：白班表格 (8:30-20:30) -->
+                    <Border Grid.Column="0" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4">
+                        <LinearPanel Orientation="Vertical">
+                            <TextBlock Text="白班 (8:30-20:30)" 
+                                       FontSize="16" 
+                                       FontWeight="Bold" 
+                                       HorizontalAlignment="Center" 
+                                       Padding="10"
+                                       Background="{DynamicResource BorderBrush}" />
+                            
+                            <!-- 白班产品出料表格 -->
+                            <DataGrid ItemsSource="{Binding DayShiftTableData}"
+                                      AutoGenerateColumns="False"
+                                      IsReadOnly="True"
+                                      GridLinesVisibility="All"
+                                      BorderThickness="0"
+                                      CanUserReorderColumns="False"
+                                      CanUserResizeColumns="True"
+                                      CanUserSortColumns="False"
+                                      HeadersVisibility="Column">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="时间" Binding="{Binding TimeRange}" Width="Auto" />
+                                    <DataGridTextColumn Header="OK(pcs)" Binding="{Binding 产品出料OK}" Width="*" />
+                                    <DataGridTextColumn Header="NG(pcs)" Binding="{Binding 产品出料NG}" Width="*" />
+                                    <DataGridTextColumn Header="总数(pcs)" Binding="{Binding 产品出料总数}" Width="*" />
+                                    <DataGridTextColumn Header="良率(%)" Binding="{Binding 产品出料良率}" Width="*" />
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </LinearPanel>
+                    </Border>
+                    
+                    <!-- 右侧：晚班表格 (20:30-8:30) -->
+                    <Border Grid.Column="2" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4">
+                        <LinearPanel Orientation="Vertical">
+                            <TextBlock Text="晚班 (20:30-8:30)" 
+                                       FontSize="16" 
+                                       FontWeight="Bold" 
+                                       HorizontalAlignment="Center" 
+                                       Padding="10"
+                                       Background="{DynamicResource BorderBrush}" />
+                            
+                            <!-- 晚班产品出料表格 -->
+                            <DataGrid ItemsSource="{Binding NightShiftTableData}"
+                                      AutoGenerateColumns="False"
+                                      IsReadOnly="True"
+                                      GridLinesVisibility="All"
+                                      BorderThickness="0"
+                                      CanUserReorderColumns="False"
+                                      CanUserResizeColumns="True"
+                                      CanUserSortColumns="False"
+                                      HeadersVisibility="Column">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="时间" Binding="{Binding TimeRange}" Width="Auto" />
+                                    <DataGridTextColumn Header="OK(pcs)" Binding="{Binding 产品出料OK}" Width="*" />
+                                    <DataGridTextColumn Header="NG(pcs)" Binding="{Binding 产品出料NG}" Width="*" />
+                                    <DataGridTextColumn Header="总数(pcs)" Binding="{Binding 产品出料总数}" Width="*" />
+                                    <DataGridTextColumn Header="良率(%)" Binding="{Binding 产品出料良率}" Width="*" />
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </LinearPanel>
+                    </Border>
+                </Grid>
+            </LinearPanel>
+        </Border>
+        
+        <!-- 详细数据视图 -->
+        <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="2" CornerRadius="8" Padding="30" Background="{DynamicResource CardBackgroundBrush}"
+                IsVisible="{Binding ShowDetailView}">
+            <LinearPanel Orientation="Vertical" Spacing="20">
+                <Grid ColumnDefinitions="*,Auto,Auto">
+                    <TextBlock Text="检测数据明细" FontSize="20" FontWeight="Bold" VerticalAlignment="Center" />
+                    <Button Grid.Column="1" Content="导出Excel" Command="{Binding ExportDetailCommand}" Margin="0,0,10,0" />
+                    <Button Grid.Column="2" Content="导出CSV" Command="{Binding ExportDetailCsvCommand}" />
+                </Grid>
+
+                <DataGrid ItemsSource="{Binding DetailData}"
+                          AutoGenerateColumns="False" IsReadOnly="True"
+                          GridLinesVisibility="All" BorderThickness="1"
+                          BorderBrush="{DynamicResource BorderBrush}"
+                          CanUserReorderColumns="False" CanUserResizeColumns="True"
+                          CanUserSortColumns="True" HeadersVisibility="Column"
+                          RowHeight="26" MaxHeight="600"
+                          ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                          ScrollViewer.VerticalScrollBarVisibility="Auto">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="采集时间" Binding="{Binding Time}" Width="Auto" />
+                        <DataGridTextColumn Header="产品码" Binding="{Binding ProductCode}" Width="Auto" />
+                        <DataGridTextColumn Header="码等级" Binding="{Binding CodeGrade}" Width="Auto" />
+                        <DataGridTextColumn Header="总结果" Binding="{Binding Overall}" Width="Auto" />
+                        <DataGridTextColumn Header="导通耐压结果" Binding="{Binding Withstand}" Width="Auto" />
+                        <DataGridTextColumn Header="针高结果" Binding="{Binding PinHeight}" Width="Auto" />
+                        <DataGridTextColumn Header="位置度结果" Binding="{Binding Position}" Width="Auto" />
+                        <DataGridTextColumn Header="扫码结果" Binding="{Binding Scan}" Width="Auto" />
+                        <DataGridTextColumn Header="是否复检" Binding="{Binding Retest}" Width="Auto" />
+                        <DataGridTextColumn Header="Pin1鱼眼针高(mm)" Binding="{Binding Eyelet1}" Width="Auto" />
+                        <DataGridTextColumn Header="Pin2鱼眼针高(mm)" Binding="{Binding Eyelet2}" Width="Auto" />
+                        <DataGridTextColumn Header="Pin3鱼眼针高(mm)" Binding="{Binding Eyelet3}" Width="Auto" />
+                        <DataGridTextColumn Header="Pin4鱼眼针高(mm)" Binding="{Binding Eyelet4}" Width="Auto" />
+                        <DataGridTextColumn Header="Pin5鱼眼针高(mm)" Binding="{Binding Eyelet5}" Width="Auto" />
+                        <DataGridTextColumn Header="Pin6鱼眼针高(mm)" Binding="{Binding Eyelet6}" Width="Auto" />
+                        <DataGridTextColumn Header="Pin7鱼眼针高(mm)" Binding="{Binding Eyelet7}" Width="Auto" />
+                        <DataGridTextColumn Header="Pin8鱼眼针高(mm)" Binding="{Binding Eyelet8}" Width="Auto" />
+                        <DataGridTextColumn Header="Pin1框口针高(mm)" Binding="{Binding Frame1}" Width="Auto" />
+                        <DataGridTextColumn Header="Pin2框口针高(mm)" Binding="{Binding Frame2}" Width="Auto" />
+                        <DataGridTextColumn Header="Pin3框口针高(mm)" Binding="{Binding Frame3}" Width="Auto" />
+                        <DataGridTextColumn Header="Pin4框口针高(mm)" Binding="{Binding Frame4}" Width="Auto" />
+                        <DataGridTextColumn Header="Pin5框口针高(mm)" Binding="{Binding Frame5}" Width="Auto" />
+                        <DataGridTextColumn Header="Pin6框口针高(mm)" Binding="{Binding Frame6}" Width="Auto" />
+                        <DataGridTextColumn Header="Pin7框口针高(mm)" Binding="{Binding Frame7}" Width="Auto" />
+                        <DataGridTextColumn Header="Pin8框口针高(mm)" Binding="{Binding Frame8}" Width="Auto" />
+                        <DataGridTextColumn Header="鱼眼位置度X1" Binding="{Binding PosX1}" Width="Auto" />
+                        <DataGridTextColumn Header="鱼眼位置度Y1" Binding="{Binding PosY1}" Width="Auto" />
+                        <DataGridTextColumn Header="鱼眼位置度X2" Binding="{Binding PosX2}" Width="Auto" />
+                        <DataGridTextColumn Header="鱼眼位置度Y2" Binding="{Binding PosY2}" Width="Auto" />
+                        <DataGridTextColumn Header="鱼眼位置度X3" Binding="{Binding PosX3}" Width="Auto" />
+                        <DataGridTextColumn Header="鱼眼位置度Y3" Binding="{Binding PosY3}" Width="Auto" />
+                        <DataGridTextColumn Header="鱼眼位置度X4" Binding="{Binding PosX4}" Width="Auto" />
+                        <DataGridTextColumn Header="鱼眼位置度Y4" Binding="{Binding PosY4}" Width="Auto" />
+                        <DataGridTextColumn Header="鱼眼位置度X5" Binding="{Binding PosX5}" Width="Auto" />
+                        <DataGridTextColumn Header="鱼眼位置度Y5" Binding="{Binding PosY5}" Width="Auto" />
+                        <DataGridTextColumn Header="鱼眼位置度X6" Binding="{Binding PosX6}" Width="Auto" />
+                        <DataGridTextColumn Header="鱼眼位置度Y6" Binding="{Binding PosY6}" Width="Auto" />
+                        <DataGridTextColumn Header="鱼眼位置度X7" Binding="{Binding PosX7}" Width="Auto" />
+                        <DataGridTextColumn Header="鱼眼位置度Y7" Binding="{Binding PosY7}" Width="Auto" />
+                        <DataGridTextColumn Header="鱼眼位置度X8" Binding="{Binding PosX8}" Width="Auto" />
+                        <DataGridTextColumn Header="鱼眼位置度Y8" Binding="{Binding PosY8}" Width="Auto" />
+                        <DataGridTextColumn Header="框口位置度X1" Binding="{Binding FramePosX1}" Width="Auto" />
+                        <DataGridTextColumn Header="框口位置度Y1" Binding="{Binding FramePosY1}" Width="Auto" />
+                        <DataGridTextColumn Header="框口位置度X2" Binding="{Binding FramePosX2}" Width="Auto" />
+                        <DataGridTextColumn Header="框口位置度Y2" Binding="{Binding FramePosY2}" Width="Auto" />
+                        <DataGridTextColumn Header="框口位置度X3" Binding="{Binding FramePosX3}" Width="Auto" />
+                        <DataGridTextColumn Header="框口位置度Y3" Binding="{Binding FramePosY3}" Width="Auto" />
+                        <DataGridTextColumn Header="框口位置度X4" Binding="{Binding FramePosX4}" Width="Auto" />
+                        <DataGridTextColumn Header="框口位置度Y4" Binding="{Binding FramePosY4}" Width="Auto" />
+                        <DataGridTextColumn Header="框口位置度X5" Binding="{Binding FramePosX5}" Width="Auto" />
+                        <DataGridTextColumn Header="框口位置度Y5" Binding="{Binding FramePosY5}" Width="Auto" />
+                        <DataGridTextColumn Header="框口位置度X6" Binding="{Binding FramePosX6}" Width="Auto" />
+                        <DataGridTextColumn Header="框口位置度Y6" Binding="{Binding FramePosY6}" Width="Auto" />
+                        <DataGridTextColumn Header="框口位置度X7" Binding="{Binding FramePosX7}" Width="Auto" />
+                        <DataGridTextColumn Header="框口位置度Y7" Binding="{Binding FramePosY7}" Width="Auto" />
+                        <DataGridTextColumn Header="框口位置度X8" Binding="{Binding FramePosX8}" Width="Auto" />
+                        <DataGridTextColumn Header="框口位置度Y8" Binding="{Binding FramePosY8}" Width="Auto" />
+                    </DataGrid.Columns>
+                </DataGrid>
+            </LinearPanel>
+        </Border>
+        <!-- 数据追溯视图 -->
+        <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="2" CornerRadius="8" Padding="30" Background="{DynamicResource CardBackgroundBrush}"
+                IsVisible="{Binding ShowTraceView}">
+            <LinearPanel Orientation="Vertical" Spacing="20">
+                <TextBlock Text="数据追溯查询" FontSize="20" FontWeight="Bold" />
+
+                <!-- 追溯查询输入区 -->
+                <LinearPanel Orientation="Horizontal" Spacing="10">
+                    <Label Content="产品码：" VerticalAlignment="Center" />
+                    <TextBox Text="{Binding TraceProductCode}" MinWidth="300" Watermark="请输入要追溯的产品码" VerticalAlignment="Center" />
+                    <Button Content="追溯查询" Command="{Binding TraceQueryCommand}" VerticalAlignment="Center" />
+                    <TextBlock Text="按产品码精确检索检测记录（同码仅保留最新一份，含全部测量字段）"
+                               VerticalAlignment="Center" Opacity="0.6" Margin="10,0,0,0" />
+                </LinearPanel>
+
+                <!-- 追溯结果（完整字段） -->
+                <DataGrid ItemsSource="{Binding TraceResult}"
+                          AutoGenerateColumns="False" IsReadOnly="True"
+                          GridLinesVisibility="All" BorderThickness="1"
+                          BorderBrush="{DynamicResource BorderBrush}"
+                          CanUserReorderColumns="False" CanUserResizeColumns="True"
+                          CanUserSortColumns="False" HeadersVisibility="Column"
+                          RowHeight="26" MinHeight="120" MaxHeight="600"
+                          ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                          ScrollViewer.VerticalScrollBarVisibility="Auto">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="采集时间" Binding="{Binding Time}" Width="Auto" />
+                        <DataGridTextColumn Header="产品码" Binding="{Binding ProductCode}" Width="Auto" />
+                        <DataGridTextColumn Header="码等级" Binding="{Binding CodeGrade}" Width="Auto" />
+                        <DataGridTextColumn Header="总结果" Binding="{Binding Overall}" Width="Auto" />
+                        <DataGridTextColumn Header="导通耐压结果" Binding="{Binding Withstand}" Width="Auto" />
+                        <DataGridTextColumn Header="针高结果" Binding="{Binding PinHeight}" Width="Auto" />
+                        <DataGridTextColumn Header="位置度结果" Binding="{Binding Position}" Width="Auto" />
+                        <DataGridTextColumn Header="扫码结果" Binding="{Binding Scan}" Width="Auto" />
+                        <DataGridTextColumn Header="是否复检" Binding="{Binding Retest}" Width="Auto" />
+                        <DataGridTextColumn Header="Pin1鱼眼针高(mm)" Binding="{Binding Eyelet1}" Width="Auto" />
+                        <DataGridTextColumn Header="Pin2鱼眼针高(mm)" Binding="{Binding Eyelet2}" Width="Auto" />
+                        <DataGridTextColumn Header="Pin3鱼眼针高(mm)" Binding="{Binding Eyelet3}" Width="Auto" />
+                        <DataGridTextColumn Header="Pin4鱼眼针高(mm)" Binding="{Binding Eyelet4}" Width="Auto" />
+                        <DataGridTextColumn Header="Pin5鱼眼针高(mm)" Binding="{Binding Eyelet5}" Width="Auto" />
+                        <DataGridTextColumn Header="Pin6鱼眼针高(mm)" Binding="{Binding Eyelet6}" Width="Auto" />
+                        <DataGridTextColumn Header="Pin7鱼眼针高(mm)" Binding="{Binding Eyelet7}" Width="Auto" />
+                        <DataGridTextColumn Header="Pin8鱼眼针高(mm)" Binding="{Binding Eyelet8}" Width="Auto" />
+                        <DataGridTextColumn Header="Pin1框口针高(mm)" Binding="{Binding Frame1}" Width="Auto" />
+                        <DataGridTextColumn Header="Pin2框口针高(mm)" Binding="{Binding Frame2}" Width="Auto" />
+                        <DataGridTextColumn Header="Pin3框口针高(mm)" Binding="{Binding Frame3}" Width="Auto" />
+                        <DataGridTextColumn Header="Pin4框口针高(mm)" Binding="{Binding Frame4}" Width="Auto" />
+                        <DataGridTextColumn Header="Pin5框口针高(mm)" Binding="{Binding Frame5}" Width="Auto" />
+                        <DataGridTextColumn Header="Pin6框口针高(mm)" Binding="{Binding Frame6}" Width="Auto" />
+                        <DataGridTextColumn Header="Pin7框口针高(mm)" Binding="{Binding Frame7}" Width="Auto" />
+                        <DataGridTextColumn Header="Pin8框口针高(mm)" Binding="{Binding Frame8}" Width="Auto" />
+                        <DataGridTextColumn Header="鱼眼位置度X1" Binding="{Binding PosX1}" Width="Auto" />
+                        <DataGridTextColumn Header="鱼眼位置度Y1" Binding="{Binding PosY1}" Width="Auto" />
+                        <DataGridTextColumn Header="鱼眼位置度X2" Binding="{Binding PosX2}" Width="Auto" />
+                        <DataGridTextColumn Header="鱼眼位置度Y2" Binding="{Binding PosY2}" Width="Auto" />
+                        <DataGridTextColumn Header="鱼眼位置度X3" Binding="{Binding PosX3}" Width="Auto" />
+                        <DataGridTextColumn Header="鱼眼位置度Y3" Binding="{Binding PosY3}" Width="Auto" />
+                        <DataGridTextColumn Header="鱼眼位置度X4" Binding="{Binding PosX4}" Width="Auto" />
+                        <DataGridTextColumn Header="鱼眼位置度Y4" Binding="{Binding PosY4}" Width="Auto" />
+                        <DataGridTextColumn Header="鱼眼位置度X5" Binding="{Binding PosX5}" Width="Auto" />
+                        <DataGridTextColumn Header="鱼眼位置度Y5" Binding="{Binding PosY5}" Width="Auto" />
+                        <DataGridTextColumn Header="鱼眼位置度X6" Binding="{Binding PosX6}" Width="Auto" />
+                        <DataGridTextColumn Header="鱼眼位置度Y6" Binding="{Binding PosY6}" Width="Auto" />
+                        <DataGridTextColumn Header="鱼眼位置度X7" Binding="{Binding PosX7}" Width="Auto" />
+                        <DataGridTextColumn Header="鱼眼位置度Y7" Binding="{Binding PosY7}" Width="Auto" />
+                        <DataGridTextColumn Header="鱼眼位置度X8" Binding="{Binding PosX8}" Width="Auto" />
+                        <DataGridTextColumn Header="鱼眼位置度Y8" Binding="{Binding PosY8}" Width="Auto" />
+                        <DataGridTextColumn Header="框口位置度X1" Binding="{Binding FramePosX1}" Width="Auto" />
+                        <DataGridTextColumn Header="框口位置度Y1" Binding="{Binding FramePosY1}" Width="Auto" />
+                        <DataGridTextColumn Header="框口位置度X2" Binding="{Binding FramePosX2}" Width="Auto" />
+                        <DataGridTextColumn Header="框口位置度Y2" Binding="{Binding FramePosY2}" Width="Auto" />
+                        <DataGridTextColumn Header="框口位置度X3" Binding="{Binding FramePosX3}" Width="Auto" />
+                        <DataGridTextColumn Header="框口位置度Y3" Binding="{Binding FramePosY3}" Width="Auto" />
+                        <DataGridTextColumn Header="框口位置度X4" Binding="{Binding FramePosX4}" Width="Auto" />
+                        <DataGridTextColumn Header="框口位置度Y4" Binding="{Binding FramePosY4}" Width="Auto" />
+                        <DataGridTextColumn Header="框口位置度X5" Binding="{Binding FramePosX5}" Width="Auto" />
+                        <DataGridTextColumn Header="框口位置度Y5" Binding="{Binding FramePosY5}" Width="Auto" />
+                        <DataGridTextColumn Header="框口位置度X6" Binding="{Binding FramePosX6}" Width="Auto" />
+                        <DataGridTextColumn Header="框口位置度Y6" Binding="{Binding FramePosY6}" Width="Auto" />
+                        <DataGridTextColumn Header="框口位置度X7" Binding="{Binding FramePosX7}" Width="Auto" />
+                        <DataGridTextColumn Header="框口位置度Y7" Binding="{Binding FramePosY7}" Width="Auto" />
+                        <DataGridTextColumn Header="框口位置度X8" Binding="{Binding FramePosX8}" Width="Auto" />
+                        <DataGridTextColumn Header="框口位置度Y8" Binding="{Binding FramePosY8}" Width="Auto" />
+                    </DataGrid.Columns>
+                </DataGrid>
+            </LinearPanel>
+        </Border>
+    </LinearPanel>
+</UiView>

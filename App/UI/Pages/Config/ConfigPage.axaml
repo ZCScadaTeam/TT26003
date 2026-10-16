@@ -1,0 +1,143 @@
+<UiView xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:pages="clr-namespace:AppZC.UI.Pages"
+        mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="700"
+        x:Class="AppZC.UI.Pages.ConfigPage"
+        x:DataType="pages:ConfigVM">
+    <Design.DataContext>
+        <pages:ConfigVM />
+    </Design.DataContext>
+
+    <ScrollViewer>
+        <LinearPanel Orientation="Vertical" Padding="20" Spacing="20" MaxWidth="900">
+
+            <!-- PLC 通讯配置 -->
+            <Border Classes="Card" Padding="20">
+                <LinearPanel Orientation="Vertical" Spacing="15">
+                    <TextBlock Text="PLC 通讯配置" FontSize="18" FontWeight="Bold" />
+                    <TextBlock Text="THA26003 ModbusTCP（汇川 InovanceTcpNet，%MW 保持寄存器，功能码 03，数据区 5 个分段读）"
+                               FontSize="12" Foreground="{DynamicResource TextTertiaryBrush}" TextWrapping="Wrap" />
+                    <Grid ColumnDefinitions="120,*,120,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="10">
+                        <TextBlock Text="PLC IP地址：" Grid.Row="0" Grid.Column="0" VerticalAlignment="Center" />
+                        <TextBox Text="{Binding PlcIpAddress}" Grid.Row="0" Grid.Column="1" Watermark="例如：192.168.1.10" />
+                        <TextBlock Text="PLC端口：" Grid.Row="0" Grid.Column="2" VerticalAlignment="Center" />
+                        <TextBox Text="{Binding PlcPort}" Grid.Row="0" Grid.Column="3" Watermark="例如：502" />
+                        <TextBlock Text="汇川系列：" Grid.Row="1" Grid.Column="0" VerticalAlignment="Center" />
+                        <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding InovanceSeriesOptions}"
+                                  SelectedItem="{Binding InovanceSeries}" HorizontalAlignment="Stretch" />
+                        <TextBlock Grid.Row="1" Grid.Column="2" VerticalAlignment="Center" Text="地址前缀：" />
+                        <TextBox Text="{Binding PlcAddressPrefix}" Grid.Row="1" Grid.Column="3" Watermark="MW" />
+                        <TextBlock Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="4" VerticalAlignment="Center"
+                                   FontSize="12" Foreground="{DynamicResource TextTertiaryBrush}" TextWrapping="Wrap"
+                                   Text="汇川系列：AM / H3U / H5U / Easy / EVO。地址前缀默认 MW（%MW10500 → MW10500 → 寄存器 10500）；改用 ModbusTcpNet 直连时清空此项。" />
+                    </Grid>
+                    <TextBlock Text="保存后 PLC 服务将使用新地址自动重连。"
+                               FontSize="12" Foreground="{DynamicResource TextTertiaryBrush}" />
+                </LinearPanel>
+            </Border>
+
+            <!-- 打码站配置 -->
+            <Border Classes="Card" Padding="20">
+                <LinearPanel Orientation="Vertical" Spacing="15">
+                    <TextBlock Text="打码站配置（大族激光 · TCP/IP）" FontSize="18" FontWeight="Bold" />
+                    <TextBlock Text="打标指令模板留空表示协议尚未落地（打码判 MES 异常，不会假装成功）。
+回执内容正则留空表示不做闭环内容核对。"
+                               FontSize="12" Foreground="{DynamicResource TextTertiaryBrush}" TextWrapping="Wrap" />
+                    <Grid ColumnDefinitions="140,*,140,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="10">
+                        <TextBlock Text="模式：" Grid.Row="0" Grid.Column="0" VerticalAlignment="Center" />
+                        <ComboBox Grid.Row="0" Grid.Column="1" ItemsSource="{Binding LaserModeOptions}"
+                                  SelectedItem="{Binding LaserMode}" HorizontalAlignment="Stretch" />
+                        <TextBlock Text="内容来源：" Grid.Row="0" Grid.Column="2" VerticalAlignment="Center" />
+                        <ComboBox Grid.Row="0" Grid.Column="3" ItemsSource="{Binding MarkContentSourceOptions}"
+                                  SelectedItem="{Binding MarkContentSource}" HorizontalAlignment="Stretch" />
+
+                        <TextBlock Text="打标机 IP：" Grid.Row="1" Grid.Column="0" VerticalAlignment="Center" />
+                        <TextBox Text="{Binding LaserIp}" Grid.Row="1" Grid.Column="1" Watermark="192.168.250.100" />
+                        <TextBlock Text="端口：" Grid.Row="1" Grid.Column="2" VerticalAlignment="Center" />
+                        <TextBox Text="{Binding LaserPort}" Grid.Row="1" Grid.Column="3" Watermark="1024" />
+
+                        <TextBlock Text="指令模板：" Grid.Row="2" Grid.Column="0" VerticalAlignment="Center" />
+                        <TextBox Text="{Binding LaserCommandTemplate}" Grid.Row="2" Grid.Column="1"
+                                 Watermark="如 MARK,{content}\r（{content} 为占位符）" />
+                        <TextBlock Text="OK 关键字：" Grid.Row="2" Grid.Column="2" VerticalAlignment="Center" />
+                        <TextBox Text="{Binding LaserOkKeyword}" Grid.Row="2" Grid.Column="3" Watermark="OK" />
+
+                        <TextBlock Text="回执内容正则：" Grid.Row="3" Grid.Column="0" VerticalAlignment="Center" />
+                        <TextBox Text="{Binding LaserEchoRegex}" Grid.Row="3" Grid.Column="1"
+                                 Watermark="第 1 个捕获组为内容，如 OK,(\d{12})" />
+                        <TextBlock Text="回执超时(ms)：" Grid.Row="3" Grid.Column="2" VerticalAlignment="Center" />
+                        <TextBox Text="{Binding LaserTimeoutMs}" Grid.Row="3" Grid.Column="3" Watermark="8000" />
+
+                        <TextBlock Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="4" TextWrapping="Wrap"
+                                   FontSize="12" Foreground="{DynamicResource TextTertiaryBrush}"
+                                   Text="结果码：1=OK 2=打标NG 3=回执超时 4=码生成失败 5=MES异常 6=回执内容不符" />
+                    </Grid>
+                </LinearPanel>
+            </Border>
+
+            <!-- 读码站配置 -->
+            <Border Classes="Card" Padding="20">
+                <LinearPanel Orientation="Vertical" Spacing="15">
+                    <TextBlock Text="读码站配置（基恩士 SR-1000 · TCP/IP）" FontSize="18" FontWeight="Bold" />
+                    <TextBlock Text="Trigger=上位机发触发指令收数据；Push=PLC 硬触发、枪主动推送；Mock=模拟器。
+触发指令留空表示协议尚未落地。"
+                               FontSize="12" Foreground="{DynamicResource TextTertiaryBrush}" TextWrapping="Wrap" />
+                    <Grid ColumnDefinitions="140,*,140,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="10">
+                        <TextBlock Text="模式：" Grid.Row="0" Grid.Column="0" VerticalAlignment="Center" />
+                        <ComboBox Grid.Row="0" Grid.Column="1" ItemsSource="{Binding ScannerModeOptions}"
+                                  SelectedItem="{Binding ScannerMode}" HorizontalAlignment="Stretch" />
+                        <TextBlock Text="触发指令：" Grid.Row="0" Grid.Column="2" VerticalAlignment="Center" />
+                        <TextBox Text="{Binding ScannerTriggerCmd}" Grid.Row="0" Grid.Column="3" Watermark="如 LON" />
+
+                        <TextBlock Text="扫码枪 IP：" Grid.Row="1" Grid.Column="0" VerticalAlignment="Center" />
+                        <TextBox Text="{Binding ScannerIp}" Grid.Row="1" Grid.Column="1" Watermark="192.168.250.101" />
+                        <TextBlock Text="端口：" Grid.Row="1" Grid.Column="2" VerticalAlignment="Center" />
+                        <TextBox Text="{Binding ScannerPort}" Grid.Row="1" Grid.Column="3" Watermark="9004" />
+
+                        <TextBlock Text="数据终止符：" Grid.Row="2" Grid.Column="0" VerticalAlignment="Center" />
+                        <TextBox Text="{Binding ScannerTerminator}" Grid.Row="2" Grid.Column="1" Watermark="\r" />
+                        <TextBlock Text="读码超时(ms)：" Grid.Row="2" Grid.Column="2" VerticalAlignment="Center" />
+                        <TextBox Text="{Binding ScannerTimeoutMs}" Grid.Row="2" Grid.Column="3" Watermark="5000" />
+                    </Grid>
+                </LinearPanel>
+            </Border>
+
+            <!-- 码规则 -->
+            <Border Classes="Card" Padding="20">
+                <LinearPanel Orientation="Vertical" Spacing="15">
+                    <TextBlock Text="码规则（纯时间码）" FontSize="18" FontWeight="Bold" />
+                    <TextBlock Text="打标内容 = 码 = 按本机时间生成的纯时间码（默认 yyMMddHHmmss，12 位）。
+读码站校验链：长度 → 全数字 → 可解析为时间 → 时间窗（替代「固定字段比对」） → 重码状态机。"
+                               FontSize="12" Foreground="{DynamicResource TextTertiaryBrush}" TextWrapping="Wrap" />
+                    <Grid ColumnDefinitions="140,*,140,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="10">
+                        <TextBlock Text="码格式：" Grid.Row="0" Grid.Column="0" VerticalAlignment="Center" />
+                        <TextBox Text="{Binding CodeDateFormat}" Grid.Row="0" Grid.Column="1" Watermark="yyMMddHHmmss" />
+                        <TextBlock Text="码长度：" Grid.Row="0" Grid.Column="2" VerticalAlignment="Center" />
+                        <TextBox Text="{Binding CodeLength}" Grid.Row="0" Grid.Column="3" Watermark="12" />
+
+                        <TextBlock Text="时间窗(分钟)：" Grid.Row="1" Grid.Column="0" VerticalAlignment="Center" />
+                        <TextBox Text="{Binding CodeTimeWindowMinutes}" Grid.Row="1" Grid.Column="1" Watermark="10" />
+                        <TextBlock Text="在制超时(小时)：" Grid.Row="1" Grid.Column="2" VerticalAlignment="Center" />
+                        <TextBox Text="{Binding WipTimeoutHours}" Grid.Row="1" Grid.Column="3" Watermark="2" />
+
+                        <TextBlock Text="针高口径：" Grid.Row="2" Grid.Column="0" VerticalAlignment="Center" />
+                        <ComboBox Grid.Row="2" Grid.Column="1" ItemsSource="{Binding PinHeightFormatOptions}"
+                                  SelectedItem="{Binding PinHeightFormat}" HorizontalAlignment="Stretch" />
+                        <TextBlock Text="位置度口径：" Grid.Row="2" Grid.Column="2" VerticalAlignment="Center" />
+                        <ComboBox Grid.Row="2" Grid.Column="3" ItemsSource="{Binding PositionFormatOptions}"
+                                  SelectedItem="{Binding PositionFormat}" HorizontalAlignment="Stretch" />
+                        <CheckBox Grid.Row="2" Grid.Column="2" Grid.ColumnSpan="2"
+                                  Content="允许未登记码（未经打码站的码）" IsChecked="{Binding AllowUnregisteredCode}" />
+                    </Grid>
+                </LinearPanel>
+            </Border>
+
+            <LinearPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
+                <Button Content="重置" Command="{Binding ResetConfigCommand}" Padding="20,8" />
+                <Button Content="保存配置" Command="{Binding SaveConfigCommand}" Classes="Primary" Padding="20,8" />
+            </LinearPanel>
+        </LinearPanel>
+    </ScrollViewer>
+</UiView>

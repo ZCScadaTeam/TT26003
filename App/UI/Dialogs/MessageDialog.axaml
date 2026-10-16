@@ -1,0 +1,82 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:iconPacks="https://github.com/MahApps/IconPacks.Avalonia"
+        xmlns:dialogs="clr-namespace:AppZC.UI.Dialogs"
+        mc:Ignorable="d" d:DesignWidth="450" d:DesignHeight="200"
+        x:Class="AppZC.UI.Dialogs.MessageDialog"
+        x:DataType="dialogs:MessageDialogVM"
+        Width="450"
+        MinHeight="200"
+        MaxHeight="400"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False"
+        ShowInTaskbar="False"
+        Background="Transparent"
+        SystemDecorations="None">
+    
+    <Design.DataContext>
+        <dialogs:MessageDialogVM />
+    </Design.DataContext>
+    
+    <!-- 主容器 -->
+    <Border Background="{DynamicResource CardBackgroundSolidBrush}" 
+            BorderBrush="LightGray" 
+            BorderThickness="1" 
+            CornerRadius="8"
+            Margin="10"
+            BoxShadow="0 4 16 0 #40000000">
+        <Grid RowDefinitions="Auto,*,Auto">
+            <!-- 标题栏（可拖动） -->
+            <Border Grid.Row="0" 
+                    Background="{DynamicResource CardBackgroundBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="0,0,0,1"
+                    CornerRadius="8,8,0,0"
+                    Padding="20,15"
+                    PointerPressed="OnTitleBarPointerPressed">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <iconPacks:PackIconCodicons Kind="Info" 
+                                               Width="20" 
+                                               Height="20" 
+                                               Foreground="{DynamicResource PrimaryBrush}"
+                                               VerticalAlignment="Center"/>
+                    <TextBlock Text="{Binding Title}" 
+                               FontSize="16" 
+                               FontWeight="SemiBold" 
+                               Foreground="{DynamicResource TextPrimaryBrush}"
+                               VerticalAlignment="Center"/>
+                </StackPanel>
+            </Border>
+            
+            <!-- 内容区域 -->
+            <Border Grid.Row="1" 
+                    Padding="20,20">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <TextBlock Text="{Binding Message}" 
+                               FontSize="14" 
+                               TextWrapping="Wrap"
+                               LineHeight="22"
+                               Foreground="{DynamicResource TextSecondaryBrush}"/>
+                </ScrollViewer>
+            </Border>
+            
+            <!-- 按钮区域 -->
+            <Border Grid.Row="2" 
+                    Background="{DynamicResource CardBackgroundDarkBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}" 
+                    BorderThickness="0,1,0,0"
+                    CornerRadius="0,0,8,8"
+                    Padding="20,15">
+                <Button Content="确定" 
+                        Classes="Primary"
+                        Theme="{DynamicResource Button-Solid}"
+                        HorizontalAlignment="Center"
+                        Padding="40,8"
+                        FontSize="14"
+                        Click="OnOkClick"/>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

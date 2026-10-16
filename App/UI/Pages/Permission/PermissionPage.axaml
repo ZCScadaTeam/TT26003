@@ -1,0 +1,152 @@
+<UiView xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:pages="clr-namespace:AppZC.UI.Pages"
+        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+        x:Class="AppZC.UI.Pages.PermissionPage"
+        x:DataType="pages:PermissionVM">
+    <Design.DataContext>
+        <pages:PermissionVM />
+    </Design.DataContext>
+    
+    <Grid Margin="20" RowDefinitions="Auto,*" ColumnDefinitions="*,20,*">
+        <!-- 标题 -->
+        <StackPanel Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="3" Spacing="10" Margin="0,0,0,20">
+            <TextBlock FontSize="24" FontWeight="Bold">身份登录</TextBlock>
+            <TextBlock FontSize="14" Foreground="Gray">选择身份后点击登录（无 MES 刷卡环境，免密登录）</TextBlock>
+        </StackPanel>
+
+        <!-- 左侧：登录表单 -->
+        <Border Grid.Row="1" Grid.Column="0"
+                BorderBrush="LightGray"
+                BorderThickness="1"
+                CornerRadius="8"
+                Padding="30"
+                VerticalAlignment="Top">
+            <StackPanel Spacing="20" MaxWidth="400">
+                <TextBlock FontSize="18" FontWeight="SemiBold">用户登录</TextBlock>
+
+                <!-- 身份下拉选择 -->
+                <StackPanel Spacing="8">
+                    <TextBlock Text="身份" FontSize="14" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                    <ComboBox ItemsSource="{Binding RoleOptions}"
+                              SelectedIndex="{Binding SelectedRoleIndex}"
+                              Width="220"
+                              FontSize="14"
+                              Padding="10,6"
+                              HorizontalAlignment="Left"/>
+                </StackPanel>
+
+                <!-- 操作按钮 -->
+                <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,10,0,0">
+                    <Button Classes="Primary"
+                            Theme="{DynamicResource Button-Solid}"
+                            Command="{Binding LoginCommand}"
+                            Padding="30,10"
+                            FontSize="14">
+                        登录
+                    </Button>
+                </StackPanel>
+                
+                <!-- 错误提示 -->
+                <Border BorderBrush="{DynamicResource DangerBrush}" 
+                        BorderThickness="1" 
+                        Padding="12" 
+                        CornerRadius="5" 
+                        Background="{DynamicResource DangerLightBrush}"
+                        IsVisible="{Binding HasError}">
+                    <TextBlock Text="{Binding ErrorMessage}" 
+                               FontSize="13" 
+                               Foreground="{DynamicResource DangerBrush}" 
+                               TextWrapping="Wrap"/>
+                </Border>
+                
+                <!-- 提示信息 -->
+                <Border BorderBrush="{DynamicResource WarningBrush}"
+                        BorderThickness="1"
+                        Padding="12"
+                        CornerRadius="5"
+                        Background="{DynamicResource WarningLightBrush}"
+                        Margin="0,10,0,0">
+                    <StackPanel Spacing="5">
+                        <TextBlock FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource WarningBrush}">登录提示</TextBlock>
+                        <TextBlock FontSize="12" Foreground="{DynamicResource WarningBrush}" TextWrapping="Wrap">
+                            • 选择身份后点击登录，无需密码
+                        </TextBlock>
+                        <TextBlock FontSize="12" Foreground="{DynamicResource WarningBrush}" TextWrapping="Wrap">
+                            • 技术员及以上身份方可进入「配置」页面
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </Border>
+        
+        <!-- 右侧：当前登录状态 -->
+        <Border Grid.Row="1" Grid.Column="2" 
+                BorderBrush="LightGray" 
+                BorderThickness="1" 
+                CornerRadius="8" 
+                Padding="30"
+                VerticalAlignment="Top">
+            <StackPanel Spacing="20">
+                <TextBlock FontSize="18" FontWeight="SemiBold">登录状态</TextBlock>
+                
+                <!-- 登录信息显示 -->
+                <Border BorderBrush="{DynamicResource BorderBrush}" 
+                        BorderThickness="1" 
+                        CornerRadius="5" 
+                        Padding="20" 
+                        Background="{DynamicResource CardBackgroundBrush}">
+                    <StackPanel Spacing="15">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="当前状态" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                            <TextBlock Text="{Binding CurrentUserInfo}" 
+                                       FontSize="14" 
+                                       FontWeight="SemiBold"
+                                       TextWrapping="Wrap"/>
+                        </StackPanel>
+                        
+                        <!-- 登出按钮 -->
+                        <Button Classes="Danger" 
+                                Theme="{DynamicResource Button-Outline}" 
+                                Command="{Binding LogoutCommand}"
+                                IsEnabled="{Binding IsLoggedIn}"
+                                HorizontalAlignment="Stretch"
+                                Padding="0,10" 
+                                FontSize="14">
+                            登出
+                        </Button>
+                    </StackPanel>
+                </Border>
+                
+                <!-- 权限说明 -->
+                <Border BorderBrush="{DynamicResource PrimaryBrush}" 
+                        BorderThickness="1" 
+                        Padding="15" 
+                        CornerRadius="5" 
+                        Background="{DynamicResource PrimaryLightBrush}">
+                    <StackPanel Spacing="8">
+                        <TextBlock FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryBrush}">身份权限说明</TextBlock>
+                        <TextBlock FontSize="12" Foreground="{DynamicResource PrimaryBrush}" TextWrapping="Wrap">
+                            <Run Text="• 操作员(1)："/>
+                            <Run Text="主页面、数据看板、消息页面、用户帮助、人员界面"/>
+                        </TextBlock>
+                        <TextBlock FontSize="12" Foreground="{DynamicResource PrimaryBrush}" TextWrapping="Wrap">
+                            <Run Text="• 技术员(2)/PE(3)/ME(4)："/>
+                            <Run Text="操作员权限 + 配置页面"/>
+                        </TextBlock>
+                        <TextBlock FontSize="12" Foreground="{DynamicResource PrimaryBrush}" TextWrapping="Wrap">
+                            <Run Text="• 管理员(5)："/>
+                            <Run Text="所有界面（完全权限）"/>
+                        </TextBlock>
+                        <TextBlock FontSize="12" Foreground="{DynamicResource PrimaryBrush}" TextWrapping="Wrap">
+                            <Run Text="• 厂商(6)："/>
+                            <Run Text="权限最大"/>
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </Border>
+    </Grid>
+</UiView>

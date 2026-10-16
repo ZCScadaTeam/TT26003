@@ -1,0 +1,24 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+				xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+				xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+				xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+				xmlns:internal="clr-namespace:AppZC.UI"
+				mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+				x:Class="AppZC.UI.AppStartUpPage"
+				Width="640"
+				Height="420"
+				x:DataType="AppStartUpVM">
+	<Design.DataContext>
+		<internal:AppStartUpVM />
+	</Design.DataContext>
+	<Grid
+		HorizontalAlignment="Center"
+		VerticalAlignment="Center"
+		RowDefinitions="Auto">
+		<!-- 加载中 -->
+		<StackPanel Grid.Row="0" Spacing="14">
+			<TextBlock Text="系统加载中..." FontSize="16" HorizontalAlignment="Center"/>
+			<ProgressBar Width="380" Height="12" Value="{Binding Progress}"/>
+		</StackPanel>
+	</Grid>
+</UserControl>

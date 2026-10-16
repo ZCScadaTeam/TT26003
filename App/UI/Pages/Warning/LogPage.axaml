@@ -1,0 +1,65 @@
+﻿<UiView xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:pages="clr-namespace:AppZC.UI.Pages.Warning"
+        mc:Ignorable="d" d:DesignWidth="1920" d:DesignHeight="1080"
+        x:Class="AppZC.UI.Pages.Warning.LogPage"
+        x:DataType="pages:LogVM">
+    <Design.DataContext>
+        <pages:LogVM />
+    </Design.DataContext>
+    
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <LinearPanel Orientation="Vertical" Padding="20" Spacing="20">
+            <!-- 标题和日期选择 -->
+            <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,2" Padding="0,0,0,10">
+                <Grid>
+                    <LinearPanel Orientation="Horizontal" Spacing="10">
+                        <TextBlock Text="调试日志" FontSize="24" FontWeight="Bold" />
+                        <TextBlock Text="{Binding DebugLogs.Count, StringFormat='({0}条)'}" 
+                                  FontSize="20" 
+                                  Foreground="{DynamicResource PrimaryBrush}" 
+                                  VerticalAlignment="Center" />
+                    </LinearPanel>
+                    
+                    <LinearPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right">
+                        <TextBlock Text="开始日期：" VerticalAlignment="Center" FontSize="16" />
+                        <DatePicker SelectedDate="{Binding StartDate}" />
+                        <TextBlock Text="结束日期：" VerticalAlignment="Center" FontSize="16" Margin="10,0,0,0" />
+                        <DatePicker SelectedDate="{Binding EndDate}" />
+                        <Button Content="查询" Command="{Binding QueryCommand}" Margin="10,0,0,0" />
+                    </LinearPanel>
+                </Grid>
+            </Border>
+            
+            <!-- 日志列表 -->
+            <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="2" CornerRadius="8" Padding="0" Background="{DynamicResource CardBackgroundBrush}">
+                <DataGrid ItemsSource="{Binding DebugLogs}"
+                          AutoGenerateColumns="False"
+                          IsReadOnly="True"
+                          GridLinesVisibility="All"
+                          BorderThickness="0"
+                          BorderBrush="{DynamicResource BorderBrush}"
+                          CanUserReorderColumns="False"
+                          CanUserResizeColumns="True"
+                          CanUserSortColumns="False"
+                          HeadersVisibility="Column"
+                          MaxHeight="900">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="时间" Binding="{Binding LogTimeDisplay}" Width="200" />
+                        <DataGridTextColumn Header="级别" Binding="{Binding LogLevel}" Width="60" />
+                        <DataGridTextColumn Header="类型" Binding="{Binding LogType}" Width="100" />
+                        <DataGridTextColumn Header="消息" Binding="{Binding Message}" Width="*" />
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Border>
+            
+            <!-- 提示信息 -->
+            <TextBlock Text="提示：选择开始日期和结束日期后点击查询按钮，加载日期范围内的所有日志（默认查询最近7天）" 
+                      FontSize="14" 
+                      Foreground="{DynamicResource TextSecondaryBrush}" 
+                      HorizontalAlignment="Center" />
+        </LinearPanel>
+    </ScrollViewer>
+</UiView>

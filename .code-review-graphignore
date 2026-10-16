@@ -1,0 +1,14 @@
+# code-review-graph ignore patterns (HQ-DXX)
+.git/
+.gitignore
+.idea/
+obj/
+bin/
+Ext/.generated/
+.generated/
+-.nuget/
+*.user
+*.DotSettings
+App/Assets/@Copy/
+App/Assets/@Libs/
+App/Assets/Images/
