@@ -23,6 +23,9 @@ public static class ThaDb
 	/// <summary>是否已初始化成功。</summary>
 	public static bool IsInitialized { get; private set; }
 
+	/// <summary>初始化时使用的连接串（供后台线程创建独立客户端）。</summary>
+	private static string _connectionString = "";
+
 	/// <summary>
 	/// 初始化本地 SQLite：确保 AppData 目录存在、规范化连接串（回写 AppConfig）、
 	/// 建 SqlSugarScope 并 CodeFirst 建表（幂等）。
@@ -36,6 +39,7 @@ public static class ThaDb
 		// 强制 SQLite + 本地文件路径（回写配置，保证 UseDatabase 与 ThaDb 读同一库文件）
 		cfg.DbType = DatabaseType.Sqlite;
 		cfg.ConnectionString = $"DataSource={DbPath}";
+		_connectionString = cfg.ConnectionString;
 
 		Db = new SqlSugarScope(new ConnectionConfig
 		{
@@ -108,11 +112,32 @@ public static class ThaDb
 	}
 
 	/// <summary>
-	/// 上传落库：一条产品一条记录。
-	/// 事务内完成 INSERT 产品记录 + 更新码索引状态（已上传 + 回填 ProductId），
-	/// 保证"产品记录"与"码状态"不会一个成功一个失败。
+	/// 为后台线程创建**独立**的 SqlSugar 客户端（调用方负责 Dispose）。
+	///
+	/// 为什么不直接用 <see cref="Db"/>：SqlSugarScope 通过 AsyncLocal 保存当前上下文客户端，
+	/// <c>Task.Run</c> 会把调用方的 ExecutionContext（含该客户端）流进后台任务，
+	/// 造成后台任务与 UI/PLC 线程共用同一条 SQLite 连接 → 并发 Close 时抛
+	/// <c>NullReferenceException at Microsoft.Data.Sqlite.SqliteConnection.Close()</c>。
+	/// 后台线程（报表写盘、保留期清理）一律走本方法拿独立连接。
 	/// </summary>
-	public static bool InsertProductRecord(ThaProductRecord record)
+	public static ISqlSugarClient NewClient()
+		=> new SqlSugarClient(new ConnectionConfig
+		{
+			DbType = DbType.Sqlite,
+			ConnectionString = _connectionString,
+			IsAutoCloseConnection = true,
+			InitKeyType = InitKeyType.Attribute,
+		});
+
+	/// <summary>
+	/// 上传落库：一条产品一条记录。
+	/// 事务内完成 INSERT 产品记录 + 更新码索引状态（已上传 + 回填 ProductId）。
+	///
+	/// <paramref name="codeForIndex"/>：码索引用的码。**默认用 record.ProductCode**，
+	/// 但现场产品码例 = 读码站扫到的码（未扫上就为空），码状态机必须按**打码码**推进，
+	/// 否则未扫码的件码会永远停在“已打码”，所以上传站会显式传入打码码。
+	/// </summary>
+	public static bool InsertProductRecord(ThaProductRecord record, string? codeForIndex = null)
 	{
 		if (!IsInitialized) return false;
 		try
@@ -121,11 +146,13 @@ public static class ThaDb
 			record.CreateTime = DateTime.Now;
 			record.UpdateTime = record.CreateTime;
 
+			var indexCode = string.IsNullOrWhiteSpace(codeForIndex) ? record.ProductCode : codeForIndex;
+
 			Db.Ado.BeginTran();
 			try
 			{
 				Db.Insertable(record).ExecuteCommand();
-				if (!string.IsNullOrWhiteSpace(record.ProductCode))
+				if (!string.IsNullOrWhiteSpace(indexCode))
 				{
 					Db.Updateable<ThaCodeIndexRow>()
 						.SetColumns(x => new ThaCodeIndexRow
@@ -134,7 +161,7 @@ public static class ThaDb
 							ProductId = record.Id,
 							UploadTime = record.CreateTime,
 						})
-						.Where(x => x.Code == record.ProductCode)
+						.Where(x => x.Code == indexCode)
 						.ExecuteCommand();
 				}
 				Db.Ado.CommitTran();
@@ -180,6 +207,26 @@ public static class ThaDb
 		catch (Exception ex)
 		{
 			LogMgr.Instance.Error($"[THA-DB] 读码流水落库失败: {ex.Message}", ex);
+		}
+	}
+
+	/// <summary>
+	/// 最近 N 秒内是否已有相同镭码内容的记录（识别 PLC 重复触发上传，防同一件落两行）。
+	/// 打码上下文被上一轮消费后 mark.Code 会为空，靠码已拦不住重复触发，用镭码内容兵。
+	/// </summary>
+	public static bool HasRecentMarkContent(string? markContent, int withinSeconds = 60)
+	{
+		if (!IsInitialized || string.IsNullOrWhiteSpace(markContent) || withinSeconds <= 0) return false;
+		try
+		{
+			var since = DateTime.Now.AddSeconds(-withinSeconds);
+			return Db.Queryable<ThaProductRecord>()
+				.Any(x => x.MarkContent == markContent && x.CreateTime >= since);
+		}
+		catch (Exception ex)
+		{
+			LogMgr.Instance.Warn($"[THA-DB] 查镭码内容重投失败（按未重复处理）：{ex.Message}");
+			return false;
 		}
 	}
 

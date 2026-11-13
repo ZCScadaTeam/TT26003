@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net.Sockets;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -31,19 +32,71 @@ public sealed record ScanRead(bool Ok, string? Code, string? Raw, string? Messag
 	public static ScanRead Comm(string message) => new(false, null, null, message, true);
 }
 
-/// <summary>
-/// 打标机抽象（大族激光，TCP/IP）。
-/// 具体报文内容与流程待定 → 全部走配置（指令模板 / OK 关键字 / 回执内容正则），
-/// 协议确定后只填配置，业务代码不动。
-/// </summary>
-public interface ILaserMarker
+/// <summary>外设连接状态（主页显示用，口径与 PLC 连接状态一致）。</summary>
+public enum DeviceLinkStatus
 {
-	/// <summary>设备模式（Tcp / Mock），仅用于日志与展示。</summary>
+	/// <summary>尚未探测（服务刚启动 / 适配器未初始化）。</summary>
+	Unknown,
+	/// <summary>已连接。</summary>
+	Up,
+	/// <summary>未连接。</summary>
+	Down,
+}
+
+/// <summary>单个外设的连接状态（不可变，UI 只读）。</summary>
+/// <param name="Status">连接状态。</param>
+/// <param name="Endpoint">端点（IP:Port，仅日志/排查用，不上界面）。</param>
+/// <param name="UpdateTime">本次探测时间。</param>
+public sealed record DeviceLinkState(DeviceLinkStatus Status, string Endpoint, DateTime UpdateTime)
+{
+	public static DeviceLinkState Unknown(string endpoint = "--")
+		=> new(DeviceLinkStatus.Unknown, endpoint, DateTime.Now);
+
+	public static DeviceLinkState Up(string endpoint)
+		=> new(DeviceLinkStatus.Up, endpoint, DateTime.Now);
+
+	public static DeviceLinkState Down(string endpoint)
+		=> new(DeviceLinkStatus.Down, endpoint, DateTime.Now);
+
+	/// <summary>UI 显示文本。</summary>
+	public string Text => Status switch
+	{
+		DeviceLinkStatus.Up => "已连接",
+		DeviceLinkStatus.Down => "未连接",
+		_ => "--",
+	};
+}
+
+/// <summary>外设连接状态汇总（打标机 + 扫码枪）。</summary>
+public sealed record DeviceLinkSnapshot(DeviceLinkState Laser, DeviceLinkState Scanner, DateTime UpdateTime)
+{
+	public static readonly DeviceLinkSnapshot Empty = new(
+		DeviceLinkState.Unknown(), DeviceLinkState.Unknown(), DateTime.MinValue);
+}
+
+/// <summary>可探测连通性的外设（打标机 / 扫码枪共用）。</summary>
+public interface IDeviceLink
+{
+	/// <summary>设备模式（Tcp / Mock），仅用于日志。</summary>
 	string Mode { get; }
 
 	/// <summary>是否已连接（Mock 恒为 true）。</summary>
 	bool IsConnected { get; }
 
+	/// <summary>
+	/// 连通性探测：已持有长连接 → 直接返回已连接（不新建连接）；
+	/// 否则用短超时建一次临时 TCP 连接后立即关闭；打码/读码作业进行中视为连接正常。
+	/// </summary>
+	Task<DeviceLinkState> ProbeAsync(CancellationToken ct);
+}
+
+/// <summary>
+/// 打标机抽象（大族激光，TCP/IP）。
+/// 具体报文内容与流程待定 → 全部走配置（指令模板 / OK 关键字 / 回执内容正则），
+/// 协议确定后只填配置，业务代码不动。
+/// </summary>
+public interface ILaserMarker : IDeviceLink
+{
 	/// <summary>下发内容并等回执。</summary>
 	Task<MarkerResult> MarkAsync(string content, CancellationToken ct);
 }
@@ -53,14 +106,8 @@ public interface ILaserMarker
 /// 触发指令 / 终止符 / 数据格式待定 → 全部走配置；
 /// Trigger=软触发（MES 发指令收数据）与 Push=硬触发（枪推数据）两种会话模型共用本接口。
 /// </summary>
-public interface IScanner
+public interface IScanner : IDeviceLink
 {
-	/// <summary>设备模式（TcpTrigger / TcpPush / Mock）。</summary>
-	string Mode { get; }
-
-	/// <summary>是否已连接（Mock 恒为 true）。</summary>
-	bool IsConnected { get; }
-
 	/// <summary>触发一次读码并等数据。</summary>
 	Task<ScanRead> ReadAsync(CancellationToken ct);
 }
@@ -80,10 +127,39 @@ public static class ThaDevices
 }
 
 /// <summary>
-/// 大族打标机 TCP 客户端（通用骨架）。
-/// 流程：连接 → 发送 <c>LaserCommandTemplate</c>（{content} 占位）→ 读到终止符/超时 →
-/// 按 <c>LaserOkKeyword</c> 判成功 → 按 <c>LaserEchoRegex</c> 提取回执内容并与下发内容比对。
-/// 指令细节确定后只改配置。
+/// TCP 连通性探测：只建一次临时短连接，验完立即关闭 —— 不碰业务长连接。
+/// </summary>
+internal static class DeviceProbe
+{
+	public static async Task<DeviceLinkState> TcpAsync(string ip, int port, int timeoutMs, CancellationToken ct)
+	{
+		var endpoint = $"{ip}:{port}";
+		if (string.IsNullOrWhiteSpace(ip) || port <= 0)
+			return DeviceLinkState.Down(endpoint);
+
+		try
+		{
+			using var client = new TcpClient();
+			using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+			cts.CancelAfter(timeoutMs <= 0 ? 1000 : timeoutMs);
+			await client.ConnectAsync(ip, port, cts.Token);
+			return DeviceLinkState.Up(endpoint);
+		}
+		catch
+		{
+			return DeviceLinkState.Down(endpoint);
+		}
+	}
+}
+
+/// <summary>
+/// 大族打标机 TCP 客户端。
+/// 三步流程：① 初始化模板 <c>$Initialize_&lt;模板名&gt;</c> → ② 下发数据 <c>$Data_&lt;内容&gt;</c>
+/// → ③ 启动打标 <c>$MarkStart_</c>。三步模板均可配，留空的步骤自动跳过。
+/// 回执：每步都必等回执 —— ① 初始化模板 / ② 下发数据用 <c>LaserStepTimeoutMs</c>，
+/// ③ 启动打标用 <c>LaserTimeoutMs</c>。回执为空判 3（回执超时），回执不带
+/// <c>LaserOkKeyword</c>（默认 OK）判 2（打标NG），并把步骤/指令/回执原文带回上层供弹窗。
+/// 三步均通过后按 <c>LaserEchoRegex</c> 提取回执内容与下发内容做闭环核对。
 /// </summary>
 public sealed class TcpLaserMarker(AppConfig cfg) : ILaserMarker, IDisposable
 {
@@ -94,30 +170,77 @@ public sealed class TcpLaserMarker(AppConfig cfg) : ILaserMarker, IDisposable
 	private NetworkStream? _stream;
 	private readonly SemaphoreSlim _gate = new(1, 1);
 
+	/// <summary>连通性探测（主页状态显示）。作业中不另建连接，直接报已连接。</summary>
+	public async Task<DeviceLinkState> ProbeAsync(CancellationToken ct)
+	{
+		var endpoint = $"{cfg.LaserIp}:{cfg.LaserPort}";
+		if (_gate.CurrentCount == 0)
+			return DeviceLinkState.Up(endpoint);
+
+		if (_client?.Connected == true && _stream != null)
+		{
+			IsConnected = true;
+			return DeviceLinkState.Up(endpoint);
+		}
+
+		return await DeviceProbe.TcpAsync(cfg.LaserIp, cfg.LaserPort, cfg.DeviceProbeTimeoutMs, ct);
+	}
+
 	public async Task<MarkerResult> MarkAsync(string content, CancellationToken ct)
 	{
 		await _gate.WaitAsync(ct);
 		try
 		{
-			var cmd = RenderCommand(cfg.LaserCommandTemplate, content);
-			if (string.IsNullOrEmpty(cmd))
+			var steps = BuildSteps(content);
+			if (steps.Count == 0)
 			{
-				// 指令模板未配置 = 协议细节尚未落地：明确报错而不是假装成功
+				// 三步模板全空 = 协议细节尚未落地：明确报错而不是假装成功
 				IsConnected = false;
-				return MarkerResult.Fail(MarkResultCode.InternalError, "LaserCommandTemplate 未配置（协议待定）");
+				return MarkerResult.Fail(MarkResultCode.InternalError, "打标指令模板全空（协议未配置）");
 			}
 
 			if (!await EnsureConnectedAsync(ct))
 				return MarkerResult.Fail(MarkResultCode.Timeout, $"连接打标机失败 {cfg.LaserIp}:{cfg.LaserPort}");
 
+			LogMgr.Instance.Debug($"[THA-LASER] 三步开始 内容={content} 帧={cfg.LaserFrameEnabled} ①②超时={cfg.LaserStepTimeoutMs}ms ③超时={cfg.LaserTimeoutMs}ms");
+
 			try
 			{
-				var sendBytes = Encoding.GetEncoding(cfg.LaserEncoding).GetBytes(cmd);
-				await _stream!.WriteAsync(sendBytes, ct);
-				await _stream.FlushAsync(ct);
+				var enc = Encoding.GetEncoding(cfg.LaserEncoding);
+				var end = cfg.LaserCommandEnd ?? "";
+				var replies = new List<string>(steps.Count);
 
-				var reply = await ReadUntilAsync(cfg.LaserTimeoutMs, ct);
-				return Judge(content, reply);
+				// 每步发完必等回执：无回执 → 3（回执超时）；回执未带 OK 关键字 → 2（打标NG）。
+				// 回执原文带进 Message，供主页弹窗直接展示现场原因。
+				foreach (var step in steps)
+				{
+					// 分步计时：清残留 / 写指令 / 等回执 三段分开记，慢在哪一段一眼看出
+					var sw = Stopwatch.StartNew();
+
+					// 帧模式下先清掉上一帧可能残留的字节（同一连接连发三条时避免串帧）
+					if (cfg.LaserFrameEnabled) await DrainInputAsync(ct);
+					var tDrain = sw.ElapsedMilliseconds;
+
+					await _stream!.WriteAsync(BuildFrame(enc.GetBytes(step.Command + end)), ct);
+					await _stream.FlushAsync(ct);
+					var tWrite = sw.ElapsedMilliseconds;
+
+					var reply = Clean(await ReadReplyAsync(step.TimeoutMs, ct));
+					var tReply = sw.ElapsedMilliseconds;
+
+					LogMgr.Instance.Debug($"[THA-LASER] {step.Name} 指令={step.Command} 清残留={tDrain}ms 写入={tWrite - tDrain}ms 等回执={tReply - tWrite}ms 回执={Clip(reply, 60)}");
+					if (reply.Length == 0)
+						return MarkerResult.Fail(MarkResultCode.Timeout,
+							$"{step.Name}无回执（指令 {step.Command}）");
+
+					if (!HasOkKeyword(reply))
+						return new MarkerResult(false, MarkResultCode.LaserNg,
+							$"{step.Name}回执未带 OK（指令 {step.Command} / 回执 {Clip(reply)}）", reply, null);
+
+					replies.Add(reply);
+				}
+
+				return Judge(content, string.Join("\r\n", replies));
 			}
 			catch (Exception ex)
 			{
@@ -131,6 +254,155 @@ public sealed class TcpLaserMarker(AppConfig cfg) : ILaserMarker, IDisposable
 			if (!cfg.LaserKeepAlive) Close();
 		}
 	}
+
+	/// <summary>打标步骤（名称 / 待发指令 / 等回执超时）。</summary>
+	/// <param name="Name">步骤名（报错与日志用）。</param>
+	/// <param name="Command">待发指令（已渲染占位）。</param>
+	/// <param name="TimeoutMs">该步等回执超时。</param>
+	private sealed record LaserStep(string Name, string Command, int TimeoutMs);
+
+	// ===== 帧封装：0x02(STX) + ASCII 指令 + 0x03(ETX) =====
+	// 大族标准帧；LaserFrameEnabled=false 时发/收都是裸 ASCII。
+	private const byte Stx = 0x02;
+	private const byte Etx = 0x03;
+
+	/// <summary>发送前组帧：默认在指令前后包 0x02/0x03。</summary>
+	private byte[] BuildFrame(byte[] body)
+	{
+		if (!cfg.LaserFrameEnabled || body.Length == 0) return body;
+		var frame = new byte[body.Length + 2];
+		frame[0] = Stx;
+		Buffer.BlockCopy(body, 0, frame, 1, body.Length);
+		frame[^1] = Etx;
+		return frame;
+	}
+
+	/// <summary>
+	/// 读一帧回执：帧模式下以 0x03 为结束标志（不用“读到一段就返回”，避免 TCP 分包丢字节），
+	/// 拿到后剔掉 0x02/0x03；非帧模式维持原逻辑（按终止符或读到一段即返回）。
+	/// </summary>
+	private async Task<string> ReadReplyAsync(int timeoutMs, CancellationToken ct)
+	{
+		var enc = Encoding.GetEncoding(cfg.LaserEncoding);
+		var framed = cfg.LaserFrameEnabled;
+		var termBytes = (!framed && !string.IsNullOrEmpty(cfg.LaserReplyTerminator))
+			? enc.GetBytes(cfg.LaserReplyTerminator)
+			: null;
+
+		var buf = new byte[512];
+		using var ms = new MemoryStream(512);
+		using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+		cts.CancelAfter(timeoutMs);
+		try
+		{
+			while (true)
+			{
+				var n = await _stream!.ReadAsync(buf, cts.Token);
+				if (n <= 0) break;
+				ms.Write(buf, 0, n);
+
+				var data = ms.GetBuffer();
+				var len = (int)ms.Length;
+				if (framed)
+				{
+					// 帧尾 0x03 一到就是完整帧（一帧可能分多个 TCP 包到达）
+					if (Array.IndexOf(data, Etx, 0, len) >= 0) break;
+				}
+				else if (termBytes != null)
+				{
+					if (enc.GetString(data, 0, len).Contains(cfg.LaserReplyTerminator, StringComparison.Ordinal)) break;
+				}
+				else
+				{
+					break; // 非帧模式且无终止符：读到一段就返回，避免挂死
+				}
+			}
+		}
+		catch (OperationCanceledException)
+		{
+			// 超时：把已收到的部分作为回执返回
+		}
+		catch (Exception ex)
+		{
+			LogMgr.Instance.Warn($"[THA-LASER] 读回执异常：{ex.Message}");
+		}
+
+		return ExtractReply(ms.GetBuffer(), (int)ms.Length, enc);
+	}
+
+	/// <summary>从原始字节里取回执正文：帧模式只取 0x02 与 0x03 之间的部分。</summary>
+	private string ExtractReply(byte[] raw, int len, Encoding enc)
+	{
+		if (len <= 0) return "";
+		var start = 0;
+		var end = len - 1;
+		if (cfg.LaserFrameEnabled)
+		{
+			var stx = Array.IndexOf(raw, Stx, 0, len);
+			var etx = Array.IndexOf(raw, Etx, 0, len);
+			if (stx >= 0) start = stx + 1;
+			if (etx > start) end = etx - 1;
+			if (end < start) return "";
+			// 尾包后紧跟下一条报文时，还能再遇到 0x03：只取第一帧
+			var etx2 = Array.IndexOf(raw, Etx, start, end - start + 1);
+			if (etx2 > start) end = etx2 - 1;
+		}
+		return enc.GetString(raw, start, end - start + 1);
+	}
+
+	/// <summary>清掉接收缓冲里残留的字节（上一帧之后的剩余数据），避免下一帧串位。</summary>
+	private async Task DrainInputAsync(CancellationToken ct)
+	{
+		try
+		{
+			var buf = new byte[256];
+			while (_stream != null && _stream.DataAvailable)
+			{
+				var n = await _stream.ReadAsync(buf, ct);
+				if (n <= 0) break;
+			}
+		}
+		catch { /* 清残留失败不影响本步收发 */ }
+	}
+
+	/// <summary>回执清理：去掉控制字符（含残留的 0x02/0x03）与首尾空白。</summary>
+	private static string Clean(string s)
+		=> s.Trim('\u0002', '\u0003', '\r', '\n', '\0', ' ', '\t');
+
+	/// <summary>回执是否“带 OK”：未配关键字时只要求有回执。</summary>
+	private bool HasOkKeyword(string reply)
+		=> string.IsNullOrEmpty(cfg.LaserOkKeyword)
+			|| reply.Contains(cfg.LaserOkKeyword, StringComparison.OrdinalIgnoreCase);
+
+	/// <summary>回执截断（弹窗/log 不扭成一大段）。</summary>
+	private static string Clip(string s, int max = 120)
+		=> s.Length <= max ? s : s[..max] + "…";
+
+	/// <summary>按配置拼出三步指令，留空的步骤跳过。</summary>
+	private List<LaserStep> BuildSteps(string content)
+	{
+		var stepMs = cfg.LaserStepTimeoutMs <= 0 ? 800 : cfg.LaserStepTimeoutMs;
+		var template = cfg.LaserTemplateName ?? "";
+		var steps = new List<LaserStep>(3);
+
+		var init = Render(cfg.LaserInitTemplate, template, content);
+		if (init.Length > 0) steps.Add(new LaserStep("初始化模板", init, stepMs));
+
+		var data = Render(cfg.LaserDataTemplate, template, content);
+		if (data.Length > 0) steps.Add(new LaserStep("下发数据", data, stepMs));
+
+		var start = Render(cfg.LaserStartTemplate, template, content);
+		if (start.Length > 0) steps.Add(new LaserStep("启动打标", start, cfg.LaserTimeoutMs));
+
+		return steps;
+	}
+
+	/// <summary>占位渲染：<c>{template}</c> → 模板名，<c>{content}</c> → 打标内容。</summary>
+	private static string Render(string template, string templateName, string content)
+		=> string.IsNullOrEmpty(template)
+			? ""
+			: template.Replace("{template}", templateName).Replace("{content}", content);
+
 
 	/// <summary>回执判定：OK 关键字 + 回执内容核对（两段式，见方案 §3.3）。</summary>
 	private MarkerResult Judge(string content, string reply)
@@ -161,9 +433,6 @@ public sealed class TcpLaserMarker(AppConfig cfg) : ILaserMarker, IDisposable
 		return new MarkerResult(true, MarkResultCode.Ok, null, reply, echo);
 	}
 
-	private static string RenderCommand(string template, string content)
-		=> string.IsNullOrEmpty(template) ? "" : template.Replace("{content}", content);
-
 	private async Task<bool> EnsureConnectedAsync(CancellationToken ct)
 	{
 		if (_client?.Connected == true && _stream != null)
@@ -190,38 +459,6 @@ public sealed class TcpLaserMarker(AppConfig cfg) : ILaserMarker, IDisposable
 			LogMgr.Instance.Warn($"[THA-LASER] 连接 {cfg.LaserIp}:{cfg.LaserPort} 失败：{ex.Message}");
 			return false;
 		}
-	}
-
-	private async Task<string> ReadUntilAsync(int timeoutMs, CancellationToken ct)
-	{
-		var term = cfg.LaserReplyTerminator;
-		var termBytes = string.IsNullOrEmpty(term) ? null : Encoding.GetEncoding(cfg.LaserEncoding).GetBytes(term);
-		var buf = new byte[512];
-		var sb = new StringBuilder();
-		using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-		cts.CancelAfter(timeoutMs);
-		try
-		{
-			while (true)
-			{
-				var n = await _stream!.ReadAsync(buf, cts.Token);
-				if (n <= 0) break;
-				var text = Encoding.GetEncoding(cfg.LaserEncoding).GetString(buf, 0, n);
-				sb.Append(text);
-				if (termBytes != null && text.Contains(term, StringComparison.Ordinal)) break;
-				// 未配终止符时：读到一段就返回，避免挂死
-				if (termBytes == null) break;
-			}
-		}
-		catch (OperationCanceledException)
-		{
-			// 超时：把已收到的部分作为回执返回
-		}
-		catch (Exception ex)
-		{
-			LogMgr.Instance.Warn($"[THA-LASER] 读回执异常：{ex.Message}");
-		}
-		return sb.ToString();
 	}
 
 	private void Close()
@@ -251,6 +488,22 @@ public sealed class TcpScanner(AppConfig cfg) : IScanner, IDisposable
 	private NetworkStream? _stream;
 	private readonly SemaphoreSlim _gate = new(1, 1);
 
+	/// <summary>连通性探测（主页状态显示）。作业中不另建连接，直接报已连接。</summary>
+	public async Task<DeviceLinkState> ProbeAsync(CancellationToken ct)
+	{
+		var endpoint = $"{cfg.ScannerIp}:{cfg.ScannerPort}";
+		if (_gate.CurrentCount == 0)
+			return DeviceLinkState.Up(endpoint);
+
+		if (_client?.Connected == true && _stream != null)
+		{
+			IsConnected = true;
+			return DeviceLinkState.Up(endpoint);
+		}
+
+		return await DeviceProbe.TcpAsync(cfg.ScannerIp, cfg.ScannerPort, cfg.DeviceProbeTimeoutMs, ct);
+	}
+
 	public async Task<ScanRead> ReadAsync(CancellationToken ct)
 	{
 		var trigger = !string.Equals(cfg.ScannerMode, "Push", StringComparison.OrdinalIgnoreCase);
@@ -275,6 +528,11 @@ public sealed class TcpScanner(AppConfig cfg) : IScanner, IDisposable
 				var raw = await ReadUntilAsync(cfg.ScannerTimeoutMs, ct);
 				if (string.IsNullOrEmpty(raw))
 					return ScanRead.NoRead("未收到扫码数据");
+
+				// 枪回 error 包（默认 ERROR 等关键词）= **没扫上**，交给上层重试，
+				// 不能当成"扫上了但内容不对"（那会直接判错码且不重试）。
+				if (ThaScanJudge.IsNoReadReply(raw, cfg.ScannerNoReadKeywords))
+					return ScanRead.NoRead($"扫码枪回包 {raw.Trim()}（没扫上）");
 
 				var code = ExtractCode(raw, enc);
 				return code.Length == 0 ? ScanRead.NoRead($"返回内容无法解析为码：{raw}") : new ScanRead(true, code, raw, null, false);
@@ -356,25 +614,41 @@ public sealed class TcpScanner(AppConfig cfg) : IScanner, IDisposable
 		}
 	}
 
+	/// <summary>
+	/// 读一包扫码数据。三条收尾路径：
+	/// ① 收到终止符 <c>ScannerTerminator</c>（默认 \r）→ 立刻返回；
+	/// ② <c>ScannerSilenceMs &gt; 0</c> 时，收到数据后连续这么久没有新字节 → 认为一包发完（枪回 ERROR 不带终止符时靠这条）；
+	/// ③ 一直没数据 → 等满 <c>ScannerTimeoutMs</c> 返回空串（上层判"没扫上"并重试）。
+	/// </summary>
 	private async Task<string> ReadUntilAsync(int timeoutMs, CancellationToken ct)
 	{
 		var enc = Encoding.GetEncoding(cfg.ScannerEncoding);
 		var term = !string.IsNullOrEmpty(cfg.ScannerTerminator) ? cfg.ScannerTerminator : "\r";
+		var silenceMs = cfg.ScannerSilenceMs;
 		var buf = new byte[512];
 		var sb = new StringBuilder();
-		using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-		cts.CancelAfter(timeoutMs);
+		using var totalCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+		totalCts.CancelAfter(timeoutMs);
+		using var idleCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+		using var linked = CancellationTokenSource.CreateLinkedTokenSource(totalCts.Token, idleCts.Token);
 		try
 		{
 			while (true)
 			{
-				var n = await _stream!.ReadAsync(buf, cts.Token);
+				var n = await _stream!.ReadAsync(buf, linked.Token);
 				if (n <= 0) break;
 				sb.Append(enc.GetString(buf, 0, n));
 				if (sb.ToString().Contains(term, StringComparison.Ordinal)) break;
+				// 收到数据了：起/续静默计时（首字节前不限时，由 totalCts 兜总超时）
+				if (silenceMs > 0) idleCts.CancelAfter(silenceMs);
 			}
 		}
-		catch (OperationCanceledException) { /* 超时 → 返回已收内容 */ }
+		catch (OperationCanceledException)
+		{
+			// 总超时（一个字节没收到）或静默到期（一包收完）→ 返回已收内容
+			if (sb.Length > 0)
+				LogMgr.Instance.Debug($"[THA-SCANNER] 静默 {silenceMs}ms 收尾，收到 {sb.Length} 字符");
+		}
 		catch (Exception ex)
 		{
 			LogMgr.Instance.Warn($"[THA-SCANNER] 读数据异常：{ex.Message}");
@@ -422,6 +696,9 @@ public sealed class MockLaserMarker(AppConfig cfg) : ILaserMarker
 
 	public string Mode => ModeName;
 	public bool IsConnected => true;
+
+	public Task<DeviceLinkState> ProbeAsync(CancellationToken ct)
+		=> Task.FromResult(DeviceLinkState.Up("Mock"));
 
 	public async Task<MarkerResult> MarkAsync(string content, CancellationToken ct)
 	{
@@ -473,6 +750,9 @@ public sealed class MockScanner(AppConfig cfg) : IScanner
 	public string Mode => ModeName;
 	public bool IsConnected => true;
 
+	public Task<DeviceLinkState> ProbeAsync(CancellationToken ct)
+		=> Task.FromResult(DeviceLinkState.Up("Mock"));
+
 	public async Task<ScanRead> ReadAsync(CancellationToken ct)
 	{
 		if (cfg.ScannerMockDelayMs > 0)
@@ -486,8 +766,10 @@ public sealed class MockScanner(AppConfig cfg) : IScanner
 		if (PendingCodes.TryDequeue(out var injected))
 			return injected.Length == 0 ? ScanRead.NoRead("模拟未扫到") : new ScanRead(true, injected, injected, null, false);
 
-		// 默认：返回打码站刚生成的码（同一件产品流转），无则生成当前时间的合法码
+		// 默认：返回打码站刚生成的码（同一件产品流转），无则按当前配置（含分段/批次号）生成一个合法码
 		var code = MockDeviceBus.LastMarkedCode;
+		if (string.IsNullOrEmpty(code))
+			code = ThaCodeGenerator.Generate(cfg, 200);
 		if (string.IsNullOrEmpty(code))
 			code = ThaCodeGenerator.Format(DateTime.Now, cfg.CodeDateFormat);
 		return new ScanRead(true, code, code, null, false);

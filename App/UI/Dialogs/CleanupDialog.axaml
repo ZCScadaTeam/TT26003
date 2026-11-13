@@ -1,0 +1,63 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:iconPacks="https://github.com/MahApps/IconPacks.Avalonia"
+        xmlns:dialogs="clr-namespace:AppZC.UI.Dialogs"
+        mc:Ignorable="d" d:DesignWidth="460" d:DesignHeight="210"
+        x:Class="AppZC.UI.Dialogs.CleanupDialog"
+        Width="460"
+        Height="210"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False"
+        ShowInTaskbar="False"
+        Background="Transparent"
+        SystemDecorations="None">
+
+    <!-- 退出前清理旧数据：无按钮、不可关闭，清理完成后由代码关闭 -->
+    <Border Background="{DynamicResource CardBackgroundSolidBrush}"
+            BorderBrush="LightGray"
+            BorderThickness="1"
+            CornerRadius="8"
+            Margin="10"
+            BoxShadow="0 4 16 0 #40000000">
+        <Grid RowDefinitions="Auto,*">
+            <!-- 标题栏（可拖动） -->
+            <Border Grid.Row="0"
+                    Background="{DynamicResource CardBackgroundBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="0,0,0,1"
+                    CornerRadius="8,8,0,0"
+                    Padding="20,15"
+                    PointerPressed="OnTitleBarPointerPressed">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <iconPacks:PackIconCodicons Kind="Sync"
+                                               Width="20"
+                                               Height="20"
+                                               Foreground="{DynamicResource PrimaryBrush}"
+                                               VerticalAlignment="Center"/>
+                    <TextBlock Text="正在清理本地数据"
+                               FontSize="16"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
+                               VerticalAlignment="Center"/>
+                </StackPanel>
+            </Border>
+
+            <!-- 进度区域 -->
+            <Border Grid.Row="1" Padding="24,20">
+                <StackPanel Spacing="16" VerticalAlignment="Center">
+                    <TextBlock x:Name="StatusText"
+                               Text="正在检查超过保留期的数据…"
+                               FontSize="14"
+                               TextWrapping="Wrap"
+                               Foreground="{DynamicResource TextSecondaryBrush}"/>
+                    <ProgressBar IsIndeterminate="True" Height="8" />
+                    <TextBlock Text="清理完成后将自动退出程序，请稍候…"
+                               FontSize="12"
+                               Foreground="{DynamicResource TextTertiaryBrush}"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

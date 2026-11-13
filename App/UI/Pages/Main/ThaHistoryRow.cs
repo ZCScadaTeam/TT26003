@@ -12,20 +12,26 @@ namespace AppZC.UI.Pages;
 [ObservableObject]
 public partial class ThaHistoryRow
 {
+	/// <summary>产品记录主键（不显示，仅用于“回填后原位刷新行”定位）。</summary>
+	public long RecordId { get; set; }
+
 	/// <summary>上传时间。</summary>
 	public partial string Time { get; set; } = "--";
 
 	/// <summary>产品码。</summary>
 	public partial string ProductCode { get; set; } = "";
 
-	/// <summary>打码结果。</summary>
-	public partial string MarkResult { get; set; } = "--";
+	/// <summary>镭码内容（本件下发给打标机的打标原文）。</summary>
+	public partial string MarkContent { get; set; } = "";
 
-	/// <summary>读码结果。</summary>
-	public partial string ReadResult { get; set; } = "--";
+	/// <summary>码等级（从扫码内容拆出，如 A；未扫码 / 无等级显示 --）。</summary>
+	public partial string CodeLevel { get; set; } = "--";
 
 	/// <summary>总结果。</summary>
 	public partial string Overall { get; set; } = "--";
+
+	/// <summary>扫码结果（读码站）。</summary>
+	public partial string Scan { get; set; } = "--";
 
 	/// <summary>导通耐压结果。</summary>
 	public partial string Withstand { get; set; } = "--";
@@ -38,12 +44,6 @@ public partial class ThaHistoryRow
 
 	/// <summary>是否复检。</summary>
 	public partial string IsRetest { get; set; } = "--";
-
-	/// <summary>打码时间。</summary>
-	public partial string MarkTime { get; set; } = "--";
-
-	/// <summary>读码时间。</summary>
-	public partial string ScanTime { get; set; } = "--";
 
 	/// <summary>上针高 Pin1(mm)。</summary>
 	public partial string Top1 { get; set; } = "--";
@@ -323,17 +323,17 @@ public partial class ThaHistoryRow
 	{
 		var row = new ThaHistoryRow
 		{
+			RecordId = r.Id,
 			Time = r.CreateTime.ToString("yyyy-MM-dd HH:mm:ss"),
 			ProductCode = r.ProductCode ?? "",
-			MarkResult = Tha26003.MarkResultText(r.MarkResult),
-			ReadResult = Tha26003.ScanResultText(r.ReadResult),
+			MarkContent = r.MarkContent ?? "",
+			CodeLevel = string.IsNullOrWhiteSpace(r.ScanCodeLevel) ? "--" : r.ScanCodeLevel!,
 			Overall = Tha26003.ResultText(r.OverallResult),
+			Scan = Tha26003.ResultText(r.ScanResult),
 			Withstand = Tha26003.ResultText(r.WithstandResult),
 			PinHeight = Tha26003.ResultText(r.PinHeightResult),
 			Position = Tha26003.ResultText(r.PositionResult),
 			IsRetest = r.IsRetest switch { 1 => "是", 2 => "否", _ => "--" },
-			MarkTime = r.MarkTime?.ToString("yyyy-MM-dd HH:mm:ss") ?? "--",
-			ScanTime = r.ScanTime?.ToString("yyyy-MM-dd HH:mm:ss") ?? "--",
 			OverallColor = r.OverallResult switch { 1 => "#2E7D32", 2 => "#D32F2F", _ => "#9E9E9E" },
 		};
 		row.Top1 = F(r.TopPinHeight1);

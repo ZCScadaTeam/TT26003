@@ -62,7 +62,7 @@
 
 		<!-- 底部：数据来源说明 -->
 			<Border Grid.Row="2" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6" Padding="12,8" Background="{DynamicResource CardBackgroundSolidBrush}" Margin="0,10,0,0">
-				<TextBlock Text="数据来源：THA26003 ModbusTCP（%MW 保持寄存器，功能码 03，汇川 InovanceTcpNet，地址写作 MW&lt;号&gt;）。三站信号：打码 %MW10500/10502、读码 %MW10520/10522、下料 %MW10530/10532；数据区 %MW10002~10379（位置度 15 点）；握手 %MW20000/20001、心跳 %MW20502。本页每 500ms 自动刷新；针高/位置度在下料触发时才读取，显示的是最近一次下料的值。" />
+				<TextBlock Text="数据来源：THA26003 ModbusTCP（%MW 保持寄存器，功能码 03，汇川 InovanceTcpNet，地址写作 MW&lt;号&gt;）。三站信号：打码 %MW10500/10502、读码 %MW10520/10522、下料 %MW10530/10532；数据区 %MW10002~10379（位置度 15 点）；心跳 %MW20502。本页每 500ms 自动刷新；针高/位置度在下料触发时才读取，显示的是最近一次下料的值。" />
 			</Border>
 	</Grid>
 </UserControl>

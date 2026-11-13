@@ -14,7 +14,7 @@
         <!-- 标题 -->
         <StackPanel Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="3" Spacing="10" Margin="0,0,0,20">
             <TextBlock FontSize="24" FontWeight="Bold">身份登录</TextBlock>
-            <TextBlock FontSize="14" Foreground="Gray">选择身份后点击登录（无 MES 刷卡环境，免密登录）</TextBlock>
+            <TextBlock FontSize="14" Foreground="Gray">操作员免密登录；管理员需输入密码</TextBlock>
         </StackPanel>
 
         <!-- 左侧：登录表单 -->
@@ -36,6 +36,18 @@
                               FontSize="14"
                               Padding="10,6"
                               HorizontalAlignment="Left"/>
+                </StackPanel>
+
+                <!-- 管理员密码（仅选中管理员时显示） -->
+                <StackPanel Spacing="8" IsVisible="{Binding RequiresPassword}">
+                    <TextBlock Text="密码" FontSize="14" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                    <TextBox Text="{Binding PasswordInput}"
+                             PasswordChar="●"
+                             Width="220"
+                             FontSize="14"
+                             Padding="10,6"
+                             HorizontalAlignment="Left"
+                             Watermark="管理员密码"/>
                 </StackPanel>
 
                 <!-- 操作按钮 -->
@@ -72,10 +84,13 @@
                     <StackPanel Spacing="5">
                         <TextBlock FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource WarningBrush}">登录提示</TextBlock>
                         <TextBlock FontSize="12" Foreground="{DynamicResource WarningBrush}" TextWrapping="Wrap">
-                            • 选择身份后点击登录，无需密码
+                            • 操作员：直接点击登录，无需密码
                         </TextBlock>
                         <TextBlock FontSize="12" Foreground="{DynamicResource WarningBrush}" TextWrapping="Wrap">
-                            • 技术员及以上身份方可进入「配置」页面
+                            • 管理员：需输入密码后才能登录
+                        </TextBlock>
+                        <TextBlock FontSize="12" Foreground="{DynamicResource WarningBrush}" TextWrapping="Wrap">
+                            • 仅管理员身份可进入「配置」页面
                         </TextBlock>
                     </StackPanel>
                 </Border>
@@ -129,20 +144,12 @@
                     <StackPanel Spacing="8">
                         <TextBlock FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryBrush}">身份权限说明</TextBlock>
                         <TextBlock FontSize="12" Foreground="{DynamicResource PrimaryBrush}" TextWrapping="Wrap">
-                            <Run Text="• 操作员(1)："/>
-                            <Run Text="主页面、数据看板、消息页面、用户帮助、人员界面"/>
+                            <Run Text="• 操作员（默认）："/>
+                            <Run Text="主页面、监控、统计、消息、人员、帮助"/>
                         </TextBlock>
                         <TextBlock FontSize="12" Foreground="{DynamicResource PrimaryBrush}" TextWrapping="Wrap">
-                            <Run Text="• 技术员(2)/PE(3)/ME(4)："/>
-                            <Run Text="操作员权限 + 配置页面"/>
-                        </TextBlock>
-                        <TextBlock FontSize="12" Foreground="{DynamicResource PrimaryBrush}" TextWrapping="Wrap">
-                            <Run Text="• 管理员(5)："/>
-                            <Run Text="所有界面（完全权限）"/>
-                        </TextBlock>
-                        <TextBlock FontSize="12" Foreground="{DynamicResource PrimaryBrush}" TextWrapping="Wrap">
-                            <Run Text="• 厂商(6)："/>
-                            <Run Text="权限最大"/>
+                            <Run Text="• 管理员："/>
+                            <Run Text="全部界面（含配置页），需密码登录"/>
                         </TextBlock>
                     </StackPanel>
                 </Border>

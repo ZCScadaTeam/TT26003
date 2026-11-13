@@ -1,4 +1,4 @@
-<UiView xmlns="https://github.com/avaloniaui"
+﻿<UiView xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:lvc="using:LiveChartsCore.SkiaSharpView.Avalonia"
         xmlns:pages="clr-namespace:AppZC.UI.Pages"
@@ -161,17 +161,16 @@
                           ScrollViewer.HorizontalScrollBarVisibility="Auto"
                           ScrollViewer.VerticalScrollBarVisibility="Auto">
                     <DataGrid.Columns>
-                                                <DataGridTextColumn Header="下料时间" Binding="{Binding Time}" Width="Auto" />
+                                                <DataGridTextColumn Header="采集时间" Binding="{Binding Time}" Width="Auto" />
                                                 <DataGridTextColumn Header="产品码" Binding="{Binding ProductCode}" Width="Auto" />
-                                                <DataGridTextColumn Header="打码结果" Binding="{Binding MarkResult}" Width="Auto" />
-                                                <DataGridTextColumn Header="读码结果" Binding="{Binding ReadResult}" Width="Auto" />
+                                                <DataGridTextColumn Header="镭码内容" Binding="{Binding MarkContent}" Width="Auto" />
+                                                <DataGridTextColumn Header="码等级" Binding="{Binding CodeLevel}" Width="Auto" />
                                                 <DataGridTextColumn Header="总结果" Binding="{Binding Overall}" Width="Auto" />
+                                                <DataGridTextColumn Header="扫码结果" Binding="{Binding Scan}" Width="Auto" />
                                                 <DataGridTextColumn Header="导通耐压结果" Binding="{Binding Withstand}" Width="Auto" />
                                                 <DataGridTextColumn Header="针高结果" Binding="{Binding PinHeight}" Width="Auto" />
                                                 <DataGridTextColumn Header="位置度结果" Binding="{Binding Position}" Width="Auto" />
                                                 <DataGridTextColumn Header="是否复检" Binding="{Binding IsRetest}" Width="Auto" />
-                                                <DataGridTextColumn Header="打码时间" Binding="{Binding MarkTime}" Width="Auto" />
-                                                <DataGridTextColumn Header="读码时间" Binding="{Binding ScanTime}" Width="Auto" />
                                                 <DataGridTextColumn Header="上针高 Pin1(mm)" Binding="{Binding Top1}" Width="Auto" />
                                                 <DataGridTextColumn Header="上针高 Pin2(mm)" Binding="{Binding Top2}" Width="Auto" />
                                                 <DataGridTextColumn Header="上针高 Pin3(mm)" Binding="{Binding Top3}" Width="Auto" />
@@ -292,17 +291,16 @@
                           ScrollViewer.HorizontalScrollBarVisibility="Auto"
                           ScrollViewer.VerticalScrollBarVisibility="Auto">
                     <DataGrid.Columns>
-                                                <DataGridTextColumn Header="下料时间" Binding="{Binding Time}" Width="Auto" />
+                                                <DataGridTextColumn Header="采集时间" Binding="{Binding Time}" Width="Auto" />
                                                 <DataGridTextColumn Header="产品码" Binding="{Binding ProductCode}" Width="Auto" />
-                                                <DataGridTextColumn Header="打码结果" Binding="{Binding MarkResult}" Width="Auto" />
-                                                <DataGridTextColumn Header="读码结果" Binding="{Binding ReadResult}" Width="Auto" />
+                                                <DataGridTextColumn Header="镭码内容" Binding="{Binding MarkContent}" Width="Auto" />
+                                                <DataGridTextColumn Header="码等级" Binding="{Binding CodeLevel}" Width="Auto" />
                                                 <DataGridTextColumn Header="总结果" Binding="{Binding Overall}" Width="Auto" />
+                                                <DataGridTextColumn Header="扫码结果" Binding="{Binding Scan}" Width="Auto" />
                                                 <DataGridTextColumn Header="导通耐压结果" Binding="{Binding Withstand}" Width="Auto" />
                                                 <DataGridTextColumn Header="针高结果" Binding="{Binding PinHeight}" Width="Auto" />
                                                 <DataGridTextColumn Header="位置度结果" Binding="{Binding Position}" Width="Auto" />
                                                 <DataGridTextColumn Header="是否复检" Binding="{Binding IsRetest}" Width="Auto" />
-                                                <DataGridTextColumn Header="打码时间" Binding="{Binding MarkTime}" Width="Auto" />
-                                                <DataGridTextColumn Header="读码时间" Binding="{Binding ScanTime}" Width="Auto" />
                                                 <DataGridTextColumn Header="上针高 Pin1(mm)" Binding="{Binding Top1}" Width="Auto" />
                                                 <DataGridTextColumn Header="上针高 Pin2(mm)" Binding="{Binding Top2}" Width="Auto" />
                                                 <DataGridTextColumn Header="上针高 Pin3(mm)" Binding="{Binding Top3}" Width="Auto" />

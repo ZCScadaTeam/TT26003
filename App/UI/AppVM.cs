@@ -23,8 +23,8 @@ public sealed partial class AppVM : ApplicationViewModel<AppView>
 {
 	public partial bool HasAdminRole { get; set; }
 	
-	// 当前登录用户信息
-	public partial string CurrentUserDisplay { get; set; } = "未登录";
+	// 当前登录用户信息（程序启动即为默认操作员身份）
+	public partial string CurrentUserDisplay { get; set; } = DemoSession.Display;
 	
 	// 全局状态显示属性（模板中性）
 	public partial string GlobalCurrentTime { get; set; } = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
@@ -109,16 +109,16 @@ public sealed partial class AppVM : ApplicationViewModel<AppView>
 	{
 		if (AppStartUpVM.IsCompleted == false || _isUpdatingNavigation) return;
 
-		// 配置页守卫：技术员（权限≥2）及以上身份登录后方可访问
+		// 配置页守卫：仅管理员身份可访问（操作员/未登录被拦截）
 		if (value is INavigationInfo navInfo && navInfo.Header?.ToString() == "配置")
 		{
-			if (!DemoSession.IsLoggedIn || DemoSession.Role < DemoSession.RoleTechnician)
+			if (!DemoSession.IsAdministrator)
 			{
 				var who = DemoSession.IsLoggedIn
 					? $"{DemoSession.UserName}（{DemoSession.RoleName}）"
 					: "未登录";
 				ShowMessageDialogAndRestoreTopNav("权限不足",
-					$"当前身份：{who}。\n\n请先到「人员 → 身份登入」页面以技术员及以上身份登录后再访问配置页面。");
+					$"当前身份：{who}。\n\n请先到「人员 → 身份登入」页面以管理员身份登录（密码 {DemoSession.AdminPassword}）后再访问配置页面。");
 				return;
 			}
 		}
@@ -359,6 +359,7 @@ public sealed partial class AppVM : ApplicationViewModel<AppView>
 	private void UpdateCurrentUserDisplay()
 	{
 		CurrentUserDisplay = DemoSession.Display;
+		HasAdminRole = DemoSession.IsAdministrator;
 	}
 	
 	/// <summary>

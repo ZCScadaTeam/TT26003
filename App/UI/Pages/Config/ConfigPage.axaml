@@ -42,37 +42,55 @@
             <Border Classes="Card" Padding="20">
                 <LinearPanel Orientation="Vertical" Spacing="15">
                     <TextBlock Text="打码站配置（大族激光 · TCP/IP）" FontSize="18" FontWeight="Bold" />
-                    <TextBlock Text="打标指令模板留空表示协议尚未落地（打码判 MES 异常，不会假装成功）。
+                    <TextBlock Text="打标流程：① 初始化模板 → ② 下发数据 → ③ 启动打标；某一步模板留空则自动跳过，三步全空判 MES 异常。
 回执内容正则留空表示不做闭环内容核对。"
                                FontSize="12" Foreground="{DynamicResource TextTertiaryBrush}" TextWrapping="Wrap" />
-                    <Grid ColumnDefinitions="140,*,140,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="10">
+                    <Grid ColumnDefinitions="140,*,140,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="10">
                         <TextBlock Text="模式：" Grid.Row="0" Grid.Column="0" VerticalAlignment="Center" />
                         <ComboBox Grid.Row="0" Grid.Column="1" ItemsSource="{Binding LaserModeOptions}"
                                   SelectedItem="{Binding LaserMode}" HorizontalAlignment="Stretch" />
-                        <TextBlock Text="内容来源：" Grid.Row="0" Grid.Column="2" VerticalAlignment="Center" />
-                        <ComboBox Grid.Row="0" Grid.Column="3" ItemsSource="{Binding MarkContentSourceOptions}"
-                                  SelectedItem="{Binding MarkContentSource}" HorizontalAlignment="Stretch" />
+                        <TextBlock Text="打标内容：" Grid.Row="0" Grid.Column="2" VerticalAlignment="Center" />
+                        <TextBlock Grid.Row="0" Grid.Column="3" VerticalAlignment="Center" FontSize="12"
+                                   Foreground="{DynamicResource TextTertiaryBrush}"
+                                   Text="由「码规则 → 产品码分段」拼装" TextWrapping="Wrap" />
 
                         <TextBlock Text="打标机 IP：" Grid.Row="1" Grid.Column="0" VerticalAlignment="Center" />
                         <TextBox Text="{Binding LaserIp}" Grid.Row="1" Grid.Column="1" Watermark="192.168.250.100" />
                         <TextBlock Text="端口：" Grid.Row="1" Grid.Column="2" VerticalAlignment="Center" />
                         <TextBox Text="{Binding LaserPort}" Grid.Row="1" Grid.Column="3" Watermark="1024" />
 
-                        <TextBlock Text="指令模板：" Grid.Row="2" Grid.Column="0" VerticalAlignment="Center" />
-                        <TextBox Text="{Binding LaserCommandTemplate}" Grid.Row="2" Grid.Column="1"
-                                 Watermark="如 MARK,{content}\r（{content} 为占位符）" />
+                        <TextBlock Text="模板名：" Grid.Row="2" Grid.Column="0" VerticalAlignment="Center" />
+                        <TextBox Text="{Binding LaserTemplateName}" Grid.Row="2" Grid.Column="1"
+                                 Watermark="模板文件名，如 11（→ $Initialize_11）" />
                         <TextBlock Text="OK 关键字：" Grid.Row="2" Grid.Column="2" VerticalAlignment="Center" />
                         <TextBox Text="{Binding LaserOkKeyword}" Grid.Row="2" Grid.Column="3" Watermark="OK" />
 
-                        <TextBlock Text="回执内容正则：" Grid.Row="3" Grid.Column="0" VerticalAlignment="Center" />
-                        <TextBox Text="{Binding LaserEchoRegex}" Grid.Row="3" Grid.Column="1"
-                                 Watermark="第 1 个捕获组为内容，如 OK,(\d{12})" />
-                        <TextBlock Text="回执超时(ms)：" Grid.Row="3" Grid.Column="2" VerticalAlignment="Center" />
-                        <TextBox Text="{Binding LaserTimeoutMs}" Grid.Row="3" Grid.Column="3" Watermark="8000" />
+                        <TextBlock Text="① 初始化模板：" Grid.Row="3" Grid.Column="0" VerticalAlignment="Center" />
+                        <TextBox Text="{Binding LaserInitTemplate}" Grid.Row="3" Grid.Column="1"
+                                 Watermark="$Initialize_{template}" />
+                        <TextBlock Text="② 下发数据：" Grid.Row="3" Grid.Column="2" VerticalAlignment="Center" />
+                        <TextBox Text="{Binding LaserDataTemplate}" Grid.Row="3" Grid.Column="3"
+                                 Watermark="$Data_{content}" />
 
-                        <TextBlock Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="4" TextWrapping="Wrap"
+                        <TextBlock Text="③ 启动打标：" Grid.Row="4" Grid.Column="0" VerticalAlignment="Center" />
+                        <TextBox Text="{Binding LaserStartTemplate}" Grid.Row="4" Grid.Column="1" Watermark="$MarkStart_" />
+                        <TextBlock Text="分步超时(ms)：" Grid.Row="4" Grid.Column="2" VerticalAlignment="Center" />
+                        <TextBox Text="{Binding LaserStepTimeoutMs}" Grid.Row="4" Grid.Column="3" Watermark="800" />
+
+                        <TextBlock Text="回执内容正则：" Grid.Row="5" Grid.Column="0" VerticalAlignment="Center" />
+                        <TextBox Text="{Binding LaserEchoRegex}" Grid.Row="5" Grid.Column="1"
+                                 Watermark="第 1 个捕获组为内容，如 OK,(\d{12})" />
+                        <TextBlock Text="回执超时(ms)：" Grid.Row="5" Grid.Column="2" VerticalAlignment="Center" />
+                        <TextBox Text="{Binding LaserTimeoutMs}" Grid.Row="5" Grid.Column="3" Watermark="8000" />
+
+                        <TextBlock Grid.Row="6" Grid.Column="0" Grid.ColumnSpan="2" VerticalAlignment="Center"
+                                   Text="0x02/0x03 帧封装（STX+ASCII+ETX）：" FontSize="12" />
+                        <CheckBox Grid.Row="6" Grid.Column="2" Grid.ColumnSpan="2"
+                                  Content="启用（大族标准帧，关=发裸 ASCII）" IsChecked="{Binding LaserFrameEnabled}" FontSize="12" />
+
+                        <TextBlock Grid.Row="7" Grid.Column="0" Grid.ColumnSpan="4" TextWrapping="Wrap"
                                    FontSize="12" Foreground="{DynamicResource TextTertiaryBrush}"
-                                   Text="结果码：1=OK 2=打标NG 3=回执超时 4=码生成失败 5=MES异常 6=回执内容不符" />
+                                   Text="%MW10502 只写 1（打码完成）：失败时不写（保持 0）并弹窗提示；具体原因见弹窗与日志" />
                     </Grid>
                 </LinearPanel>
             </Border>
@@ -84,7 +102,7 @@
                     <TextBlock Text="Trigger=上位机发触发指令收数据；Push=PLC 硬触发、枪主动推送；Mock=模拟器。
 触发指令留空表示协议尚未落地。"
                                FontSize="12" Foreground="{DynamicResource TextTertiaryBrush}" TextWrapping="Wrap" />
-                    <Grid ColumnDefinitions="140,*,140,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="10">
+                    <Grid ColumnDefinitions="140,*,140,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="10">
                         <TextBlock Text="模式：" Grid.Row="0" Grid.Column="0" VerticalAlignment="Center" />
                         <ComboBox Grid.Row="0" Grid.Column="1" ItemsSource="{Binding ScannerModeOptions}"
                                   SelectedItem="{Binding ScannerMode}" HorizontalAlignment="Stretch" />
@@ -97,21 +115,61 @@
                         <TextBox Text="{Binding ScannerPort}" Grid.Row="1" Grid.Column="3" Watermark="9004" />
 
                         <TextBlock Text="数据终止符：" Grid.Row="2" Grid.Column="0" VerticalAlignment="Center" />
-                        <TextBox Text="{Binding ScannerTerminator}" Grid.Row="2" Grid.Column="1" Watermark="\r" />
+                        <!-- 绑定值是实际控制字符，显示层用转义文本（\r / \n / \t），避免单行框里 CR 撑高行高 -->
+                        <TextBox Text="{Binding ScannerTerminator}" Grid.Row="2" Grid.Column="1"
+                                 Watermark="\r" MaxLines="1" VerticalContentAlignment="Center"
+                                 ToolTip.Tip="支持转义写法：\r 回车、\n 换行、\t 制表符；留空 = 不去除终止符" />
                         <TextBlock Text="读码超时(ms)：" Grid.Row="2" Grid.Column="2" VerticalAlignment="Center" />
                         <TextBox Text="{Binding ScannerTimeoutMs}" Grid.Row="2" Grid.Column="3" Watermark="5000" />
+
+                        <TextBlock Text="最多尝试次数：" Grid.Row="3" Grid.Column="0" VerticalAlignment="Center" />
+                        <TextBox Text="{Binding ScannerMaxAttempts}" Grid.Row="3" Grid.Column="1" Watermark="3" />
+                        <TextBlock Text="重试间隔(ms)：" Grid.Row="3" Grid.Column="2" VerticalAlignment="Center" />
+                        <TextBox Text="{Binding ScannerRetryDelayMs}" Grid.Row="3" Grid.Column="3" Watermark="200" />
+
+                        <TextBlock Text="静默收尾(ms)：" Grid.Row="4" Grid.Column="0" VerticalAlignment="Center" />
+                        <TextBox Text="{Binding ScannerSilenceMs}" Grid.Row="4" Grid.Column="1" Watermark="0"
+                                 ToolTip.Tip="收到数据后连续这么多毫秒无新字节即认为一包收完（不等终止符）。0 = 关闭，保持「等终止符或等满读码超时」的原始语义。" />
+                        <TextBlock Text="没扫上关键词：" Grid.Row="4" Grid.Column="2" VerticalAlignment="Center" />
+                        <TextBox Text="{Binding ScannerNoReadKeywords}" Grid.Row="4" Grid.Column="3"
+                                 Watermark="ERROR|NORED|NO READ"
+                                 ToolTip.Tip="枪回包命中这些关键词 = 没扫上（走重试），竖线或逗号分隔，不区分大小写。留空用默认值。" />
+
+                        <TextBlock Text="码等级正则：" Grid.Row="5" Grid.Column="0" VerticalAlignment="Center" />
+                        <TextBox Text="{Binding ScannerCodePattern}" Grid.Row="5" Grid.Column="1" Grid.ColumnSpan="3"
+                                 Watermark="留空=内置默认（码:等级，如 000143348000026070:A → 码 000143348000026070 / 等级 A）"
+                                 ToolTip.Tip="命名分组 code=产品码、grade=码等级；未配时用内置默认。没有分隔符的老码整串为码、等级为空。若同时配了 ScannerDataRegex，要让它整体匹配「码+等级」，否则等级在设备层就被截掉了。" />
+
+                        <TextBlock Text="码等级合格阈值：" Grid.Row="6" Grid.Column="0" VerticalAlignment="Center" />
+                        <TextBox Text="{Binding CodeGradeThreshold}" Grid.Row="6" Grid.Column="1"
+                                 Watermark="B" MaxLines="1" VerticalContentAlignment="Center"
+                                 ToolTip.Tip="等级按字母序 A＜B＜C＜D…，不高于阈值即合格。默认 B = A/B 合格，C/D 及更低 → 扫码结果判 NG。留空 = 不做等级判定；枪回包里没写等级时不判 NG。" />
+                        <TextBlock Text="默认 B：A/B 合格，C/D 判 NG" Grid.Row="6" Grid.Column="2" Grid.ColumnSpan="2"
+                                   FontSize="12" Foreground="{DynamicResource TextTertiaryBrush}" TextWrapping="Wrap" VerticalAlignment="Center" />
+
+                        <TextBlock Text="补读回填窗口(s)：" Grid.Row="7" Grid.Column="0" VerticalAlignment="Center" />
+                        <TextBox Text="{Binding LateScanFillSeconds}" Grid.Row="7" Grid.Column="1"
+                                 Watermark="60" MaxLines="1" VerticalContentAlignment="Center"
+                                 ToolTip.Tip="现场时序是打码→采集落库→读码，读码晚约 1.5s。读码读到本件码时，若记录在这么多秒内落库且还没有本码扫码结果，则回填扫码结果/码等级/总结果，本次读码按补读放行（不判重码）。0 = 关闭。" />
+                        <TextBlock Text="0=关闭；超窗仍按真重码判 NG" Grid.Row="7" Grid.Column="2" Grid.ColumnSpan="2"
+                                   FontSize="12" Foreground="{DynamicResource TextTertiaryBrush}" TextWrapping="Wrap" VerticalAlignment="Center" />
                     </Grid>
+                    <TextBlock Text="总最坏耗时 = 最多尝试次数 × 读码超时 + (次数-1) × 重试间隔（默认 3×5000 + 2×200 = 15.4 秒）。三站已改为并行作业，这段等待只占读码站，不再叠加到打码站。"
+                               FontSize="12" Foreground="{DynamicResource TextTertiaryBrush}" TextWrapping="Wrap" />
                 </LinearPanel>
             </Border>
 
             <!-- 码规则 -->
             <Border Classes="Card" Padding="20">
                 <LinearPanel Orientation="Vertical" Spacing="15">
-                    <TextBlock Text="码规则（纯时间码）" FontSize="18" FontWeight="Bold" />
-                    <TextBlock Text="打标内容 = 码 = 按本机时间生成的纯时间码（默认 yyMMddHHmmss，12 位）。
-读码站校验链：长度 → 全数字 → 可解析为时间 → 时间窗（替代「固定字段比对」） → 重码状态机。"
+                    <TextBlock Text="码规则（分段拼装 / 纯时间码）" FontSize="18" FontWeight="Bold" />
+                    <TextBlock Text="打标内容 = 码 = 按下面【产品码分段】的顺序拼接（每段定长，不足左补 0，超长保留低位）。
+取值方式：Fixed=固定值 / Time=按时间格式取（HHmmss 时刻、yy 年份、DDD 年内天序 001-366、MMdd 月日）/ Serial=产品批次号（当天流水）。
+产品批次号 5 位、**每天早上 8 点清零**：8:00 后首件 = 00001、次件 = 00002；00:00-07:59 打码的仍算前一天、流水继续累加。
+**分段全部删空 = 回到纯时间码模式**（用「码格式」整码生成，默认 yyMMddHHmmss）。
+读码站校验链：长度（分段时为各段定长之和） → 全数字 → 时间窗（把各 Time 段拼起来反解真实时间） → 重码状态机。"
                                FontSize="12" Foreground="{DynamicResource TextTertiaryBrush}" TextWrapping="Wrap" />
-                    <Grid ColumnDefinitions="140,*,140,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="10">
+                    <Grid ColumnDefinitions="140,*,140,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="10">
                         <TextBlock Text="码格式：" Grid.Row="0" Grid.Column="0" VerticalAlignment="Center" />
                         <TextBox Text="{Binding CodeDateFormat}" Grid.Row="0" Grid.Column="1" Watermark="yyMMddHHmmss" />
                         <TextBlock Text="码长度：" Grid.Row="0" Grid.Column="2" VerticalAlignment="Center" />
@@ -128,8 +186,80 @@
                         <TextBlock Text="位置度口径：" Grid.Row="2" Grid.Column="2" VerticalAlignment="Center" />
                         <ComboBox Grid.Row="2" Grid.Column="3" ItemsSource="{Binding PositionFormatOptions}"
                                   SelectedItem="{Binding PositionFormat}" HorizontalAlignment="Stretch" />
-                        <CheckBox Grid.Row="2" Grid.Column="2" Grid.ColumnSpan="2"
+                        <TextBlock Text="批次号清零(点)：" Grid.Row="3" Grid.Column="0" VerticalAlignment="Center" />
+                        <TextBox Text="{Binding SerialResetHour}" Grid.Row="3" Grid.Column="1" Watermark="8"
+                                 ToolTip.Tip="产品批次号（Serial 段）每天几点归零，默认 8（客户确认）。00:00-07:59 打码的产品仍算前一天；0 = 自然日零点清零。" />
+                        <CheckBox Grid.Row="3" Grid.Column="2" Grid.ColumnSpan="2" Content="日期段按生产日记（0-8 点记前一天）"
+                                  IsChecked="{Binding DateFollowProductionDay}"
+                                  ToolTip.Tip="勾选（默认）：0:00-7:59 打码的产品日期段记前一天，同一批次号只对应一个日期；取消：日期段用实际日期，批次号仍按上面的清零时刻归零。" />
+
+                        <!-- 单独一行：原先与位置度口径同处 Row=2 的 Column 2-3，被下拉框遮住 -->
+                        <CheckBox Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="4"
                                   Content="允许未登记码（未经打码站的码）" IsChecked="{Binding AllowUnregisteredCode}" />
+                    </Grid>
+
+                    <!-- 产品码分段（按顺序拼成打码内容）-->
+                    <TextBlock Text="产品码分段（按顺序拼接成打码内容）" FontSize="14" FontWeight="SemiBold" Margin="0,6,0,0" />
+                    <DataGrid ItemsSource="{Binding CodeSegments}"
+                              SelectedItem="{Binding SelectedCodeSegment}"
+                              AutoGenerateColumns="False"
+                              CanUserReorderColumns="False" CanUserSortColumns="False"
+                              GridLinesVisibility="All" BorderThickness="1" BorderBrush="{DynamicResource BorderBrush}"
+                              HeadersVisibility="Column" RowHeight="30" Height="230"
+                              ScrollViewer.HorizontalScrollBarVisibility="Auto">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="段名" Binding="{Binding Name}" Width="2*" />
+                            <DataGridTemplateColumn Header="取值方式" Width="2*">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate x:DataType="pages:CodeSegmentVM">
+                                        <ComboBox ItemsSource="{Binding ModeOptions}" SelectedItem="{Binding ModeDisplay}"
+                                                  HorizontalAlignment="Stretch" FontSize="12" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTextColumn Header="取值 / 时间格式" Binding="{Binding Value}" Width="2*" />
+                            <DataGridTextColumn Header="定长" Binding="{Binding Length}" Width="*" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <LinearPanel Orientation="Horizontal" Spacing="8">
+                        <Button Content="添加段" Command="{Binding AddCodeSegmentCommand}" />
+                        <Button Content="删除选中" Command="{Binding RemoveCodeSegmentCommand}"
+                                CommandParameter="{Binding SelectedCodeSegment}" />
+                        <Button Content="上移" Command="{Binding MoveCodeSegmentUpCommand}" />
+                        <Button Content="下移" Command="{Binding MoveCodeSegmentDownCommand}" />
+                        <TextBlock Text="{Binding CodeTotalLengthText}" FontSize="13" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource PrimaryBrush}" Margin="8,0,0,0" />
+                        <TextBlock Text="{Binding CodePreviewText}" FontSize="13" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource TextSecondaryBrush}" />
+                    </LinearPanel>
+                </LinearPanel>
+            </Border>
+
+            <!-- 追溯报表 / 数据保留 -->
+            <Border Classes="Card" Padding="20">
+                <LinearPanel Orientation="Vertical" Spacing="15">
+                    <TextBlock Text="追溯报表 / 本地数据保留" FontSize="18" FontWeight="Bold" />
+                    <TextBlock Text="每个自然日一份 Excel：追溯报表_YYYYMMDD.xlsx，零点自动新建次日文件，当日生产记录每 60 秒追加写入一次；进程重启后按 SQLite 记录补写，不漏不重。
+本地数据（产品记录 / 打码流水 / 读码流水 / 码索引 / 报表文件）超过保留天数时，在程序退出前检查并弹窗清理，0 = 永不删除。"
+                               FontSize="12" Foreground="{DynamicResource TextTertiaryBrush}" TextWrapping="Wrap" />
+                    <Grid ColumnDefinitions="120,*,120,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="10">
+                        <CheckBox Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2"
+                                  Content="启用每日追溯报表" IsChecked="{Binding DailyReportEnabled}" />
+                        <TextBlock Text="数据保留(天)：" Grid.Row="0" Grid.Column="2" VerticalAlignment="Center" />
+                        <TextBox Text="{Binding DataRetentionDays}" Grid.Row="0" Grid.Column="3" Watermark="30（0=永不删除）" />
+
+                        <TextBlock Text="报表目录：" Grid.Row="1" Grid.Column="0" VerticalAlignment="Center" />
+                        <TextBox Text="{Binding DailyReportDirectory}" Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2"
+                                 Watermark="{Binding DefaultReportDirectoryHint}" />
+                        <Button Content="浏览…" Grid.Row="1" Grid.Column="3"
+                                Command="{Binding BrowseReportDirectoryCommand}" HorizontalAlignment="Stretch" />
+
+                        <TextBlock Text="写盘间隔(秒)：" Grid.Row="2" Grid.Column="0" VerticalAlignment="Center" />
+                        <TextBox Text="{Binding DailyReportFlushSeconds}" Grid.Row="2" Grid.Column="1" Watermark="60" />
+                        <TextBlock Grid.Row="2" Grid.Column="2" Grid.ColumnSpan="2" VerticalAlignment="Center"
+                                   FontSize="12" Foreground="{DynamicResource TextTertiaryBrush}"
+                                   Text="固定节奏（默认 60 秒）；退出/换日会立即补写" TextWrapping="Wrap" />
                     </Grid>
                 </LinearPanel>
             </Border>

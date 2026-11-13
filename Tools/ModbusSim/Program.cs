@@ -31,6 +31,9 @@ internal static class Program
 	private static readonly int A_MarkEcho = R(10420);
 	private static readonly int A_ScanEcho = R(10560);
 	private static readonly int A_PlcContent = R(10540);
+	/// <summary>PLC 附带前站镭码内容（%MW10580，40 WORD = 80 字节 ASCII）：读码站比对用。</summary>
+	private static readonly int A_PlcCode = R(10580);
+	private const int PlcCodeWords = 40;
 	private static readonly int A_Heartbeat = R(20502);
 
 	// 数据区
@@ -42,6 +45,10 @@ internal static class Program
 
 	/// <summary>数据区冻结标志：上位机置 10530=1 后冻结，回写 10532≠0 后解冻。</summary>
 	private static volatile bool _frozen;
+	/// <summary>--mismatch：读码触发时给 %MW10580 写一个与打码内容不同的码（验证"错码"判定）。</summary>
+	private static volatile bool _mismatch;
+	/// <summary>--burst：打码与读码触发**同时**置位（验证上位机作业队列的排队行为）。</summary>
+	private static volatile bool _burst;
 	private static readonly object Gate = new();
 	private static int _partNo;
 	private static int _lastPrintedRes = -1;
@@ -49,6 +56,8 @@ internal static class Program
 	private static void Main(string[] args)
 	{
 		var autoCycle = args.Contains("--auto");
+		_mismatch = args.Contains("--mismatch");
+		_burst = args.Contains("--burst");
 		var port = 502;
 		var pi = Array.IndexOf(args, "--port");
 		if (pi >= 0 && pi + 1 < args.Length && int.TryParse(args[pi + 1], out var p)) port = p;
@@ -62,10 +71,11 @@ internal static class Program
 
 		if (autoCycle)
 		{
-			Console.WriteLine("[SIM] --auto：每 3 秒自动跑一轮（打码→读码→上传）");
+			Console.WriteLine("[SIM] --auto：每 3 秒自动跑一轮；**每第 3 件为无码上传**（只触发采集，不打码/不扫码）");
+			var cycle = 0;
 			while (true)
 			{
-				RunOneCycle();
+				RunOneCycle(noCode: ++cycle % 3 == 0);
 				Thread.Sleep(3000);
 			}
 		}
@@ -77,6 +87,7 @@ internal static class Program
 			{
 				case 'q': return;
 				case '\r' or '\n' or ' ': RunOneCycle(); break;
+				case 'n': RunOneCycle(noCode: true); break;   // 无码上传（不打码/不扫码）
 				case 'm': SetTrigger(A_MarkTrig, "打码"); break;
 				case 's': SetTrigger(A_ScanTrig, "读码"); break;
 				case 'u': SetTrigger(A_UploadTrig, "上传"); break;
@@ -91,9 +102,12 @@ internal static class Program
 		Console.WriteLine("=== THA26003 PLC 模拟器（ModbusTCP；上位机用汇川 InovanceTcpNet 连接）===");
 		Console.WriteLine("  [回车/空格] 自动跑一轮（打码→读码→上传）");
 		Console.WriteLine("  [m] 置打码触发 10500=1   [s] 置读码触发 10520=1   [u] 置上传触发 10530=1");
+		Console.WriteLine("  [n] 无码上传一轮（不打码/不扫码，只触发采集）");
+		Console.WriteLine("  [--mismatch] 启动参数：读码触发时把 %MW10580 写成不同的码（验证错码判定）");
 		Console.WriteLine("  [d] 换一件新数据（重新生成测量值）   [f] 查看冻结状态   [q] 退出");
 		Console.WriteLine("  数据区(Rev.2)：%MW10002 结果字 / %MW10022 上针高15 / %MW10122 下针高15 / %MW10220 上位置度16X/Y / %MW10320 下位置度16X/Y");
 		Console.WriteLine($"  地址映射：%MW10500→寄存器{A_MarkTrig}  %MW10002→寄存器{A_Result}  %MW20502→寄存器{A_Heartbeat}");
+		Console.WriteLine($"  读码站比对：%MW10580 为 PLC 附带前站镭码（40WORD），读码触发时自动从 %MW10420 搬运过来");
 		Console.WriteLine();
 	}
 
@@ -110,15 +124,57 @@ internal static class Program
 	// 交互：跑一轮完整流程
 	// ============================================================
 
-	private static void RunOneCycle()
+	private static void RunOneCycle(bool noCode = false)
 	{
 		BuildPartData(++_partNo);
 
 		Console.WriteLine($"\n[SIM] ---------- 第 {_partNo} 件开始 ----------");
-		if (!WaitStation(A_MarkTrig, A_MarkRes, "打码")) { Console.WriteLine("[SIM] 打码站超时（15s）"); return; }
-		if (!WaitStation(A_ScanTrig, A_ScanRes, "读码")) { Console.WriteLine("[SIM] 读码站超时（15s）"); return; }
+		if (!noCode)
+		{
+			// noCode = true：跳过打码与读码，只触发采集上传
+			//（模拟"前面工位 NG 的产品不扫码但要上传"）
+			if (_burst)
+			{
+				// 打码与读码触发同时置位：上位机是单消费者串行处理，后入队的那个必然排队
+				Console.WriteLine("[SIM] --burst：打码 + 读码触发同时置位");
+				lock (Gate)
+				{
+					CopyWordArea(A_MarkEcho, A_PlcCode, PlcCodeWords);
+					Regs[A_MarkTrig] = 1;
+					Regs[A_ScanTrig] = 1;
+				}
+				if (!WaitResult(A_MarkRes, "打码")) { Console.WriteLine("[SIM] 打码站超时（15s）"); return; }
+				if (!WaitResult(A_ScanRes, "读码")) { Console.WriteLine("[SIM] 读码站超时（15s）"); return; }
+			}
+			else
+			{
+				if (!WaitStation(A_MarkTrig, A_MarkRes, "打码")) { Console.WriteLine("[SIM] 打码站超时（15s）"); return; }
+				if (!WaitStation(A_ScanTrig, A_ScanRes, "读码")) { Console.WriteLine("[SIM] 读码站超时（15s）"); return; }
+			}
+		}
 		if (!WaitStation(A_UploadTrig, A_UploadRes, "上传")) { Console.WriteLine("[SIM] 上传站超时（15s）"); return; }
 		Console.WriteLine($"[SIM] ---------- 第 {_partNo} 件结束 ----------\n");
+	}
+
+	/// <summary>只等结果位出现（触发位已由 --burst 一次性置好），不再置触发。</summary>
+	private static bool WaitResult(int resAddr, string name)
+	{
+		var deadline = DateTime.Now.AddSeconds(15);
+		while (DateTime.Now < deadline)
+		{
+			var res = Regs[resAddr];
+			if (res != 0)
+			{
+				lock (Gate)
+				{
+					Console.WriteLine($"[SIM] {name}站结果 = {res}  {Describe(name, res)}");
+					Regs[resAddr] = 0;
+				}
+				return true;
+			}
+			Thread.Sleep(50);
+		}
+		return false;
 	}
 
 	/// <summary>置触发位 → 等上位机回写结果 → 清结果位；上传站按契约冻结/解冻数据区。</summary>
@@ -150,6 +206,20 @@ internal static class Program
 	{
 		lock (Gate)
 		{
+			// 读码触发前，把打码站回写到 %MW10420 的内容搬到 %MW10580 ——
+			// 模拟"前站镭雕好的码随产品搬运到读码站"，上位机会拿枪码与它比对。
+			if (addr == A_ScanTrig)
+			{
+				CopyWordArea(A_MarkEcho, A_PlcCode, PlcCodeWords);
+				if (_mismatch)
+				{
+					WriteAscii(A_PlcCode, "999999999999999999", PlcCodeWords);
+					Console.WriteLine("[SIM] --mismatch：%MW10580 故意写入不同的码（验证错码判定）");
+				}
+				var carried = ReadAscii(A_PlcCode, PlcCodeWords);
+				Console.WriteLine($"[SIM] PLC附带前站镭码 %MW10580 = {carried}");
+			}
+
 			Regs[addr] = 1;
 			if (name == "上传")
 			{
@@ -195,8 +265,9 @@ internal static class Program
 			for (int i = 0; i < 15; i++)
 			{
 				// 针高：PLC 侧 DINT（÷1000 显示）—— 2115 → 2.115
-				WriteInt32HiLo(A_TopPin + i * 2, 2115 + i);
-				WriteInt32HiLo(A_BotPin + i * 2, 3446 + i);
+				// 字序 CDAB（低字在前）= 上位机默认口径 PinHeightFormat=Int32Cdab
+				WriteInt32LoHi(A_TopPin + i * 2, 2115 + i);
+				WriteInt32LoHi(A_BotPin + i * 2, 3446 + i);
 			}
 			for (int i = 0; i < 15; i++)   // 位置度有效点数 15（PIN16 为协议预留，不写）
 			{
@@ -389,6 +460,13 @@ internal static class Program
 		Regs[addr + 1] = (ushort)(value & 0xFFFF);
 	}
 
+	/// <summary>写 DINT，字序 CDAB（寄存器 0 = 低字，与汇川 AM / 上位机默认口径一致）。</summary>
+	private static void WriteInt32LoHi(int addr, int value)
+	{
+		Regs[addr] = (ushort)(value & 0xFFFF);
+		Regs[addr + 1] = (ushort)((value >> 16) & 0xFFFF);
+	}
+
 	/// <summary>写单精度浮点，字序 CDAB（寄存器 0 = 低字 C,D；寄存器 1 = 高字 A,B）。
 	/// 与上位机 Tha26003 默认口径 FloatCdab 严格对称，不能写成 ABCD。</summary>
 	private static void WriteFloatCdab(int addr, float v)
@@ -399,6 +477,25 @@ internal static class Program
 	}
 
 	/// <summary>读 WORD 区 ASCII（高字节在前，与上位机 ParseAscii(swap=false) 对称）。</summary>
+	/// <summary>把 ASCII 字符串写进 WORD 区（高字节在前，与上位机 ParseAscii 对称）。</summary>
+	private static void WriteAscii(int addr, string text, int words)
+	{
+		for (int w = 0; w < words; w++)
+		{
+			var i = w * 2;
+			int c1 = i < text.Length ? text[i] : 0;
+			int c2 = i + 1 < text.Length ? text[i + 1] : 0;
+			Regs[addr + w] = (ushort)((c1 << 8) | (c2 & 0xFF));
+		}
+	}
+
+	/// <summary>WORD 区整段拷贝（模拟 PLC 内部数据搬运）。</summary>
+	private static void CopyWordArea(int src, int dst, int words)
+	{
+		for (int i = 0; i < words; i++)
+			Regs[dst + i] = Regs[src + i];
+	}
+
 	private static string ReadAscii(int addr, int words)
 	{
 		var sb = new StringBuilder(words * 2);

@@ -2,22 +2,26 @@ namespace AppZC.UI.Ext;
 
 /// <summary>
 /// 演示模式会话：替代原 UserAuthService 的登录/登出状态（无数据库、无鉴权）。
-/// 角色整型常量与原 UserRole 枚举值保持一致：0=未登录 1=操作员 2=技术员 3=PE 4=ME 5=管理员 6=厂商。
-/// 顶栏用户显示（AppVM）、登入/登出（PermissionVM）、权限位判断（MainVM）统一读取本会话。
+/// 仅保留两种身份：1=操作员（默认身份，免密） 5=管理员（密码 2026）；0=未登录。
+/// 程序启动即以操作员身份登录；顶栏用户显示（AppVM）、登入/登出（PermissionVM）、
+/// 配置页守卫（AppVM）统一读取本会话。
 /// </summary>
 public static class DemoSession
 {
 	public const int RoleOperator = 1;
-	public const int RoleTechnician = 2;
-	public const int RolePe = 3;
-	public const int RoleMe = 4;
 	public const int RoleAdministrator = 5;
-	public const int RoleVendor = 6;
 
-	public static string UserName { get; private set; } = "";
-	public static int Role { get; private set; }
+	/// <summary>管理员登录密码。</summary>
+	public const string AdminPassword = "2026";
+
+	// 默认以操作员身份登录（未调用 Login 前即为操作员权限）
+	public static string UserName { get; private set; } = "操作员";
+	public static int Role { get; private set; } = RoleOperator;
 
 	public static bool IsLoggedIn => !string.IsNullOrEmpty(UserName);
+
+	/// <summary>是否为管理员（唯一可进入配置页的身份）。</summary>
+	public static bool IsAdministrator => IsLoggedIn && Role == RoleAdministrator;
 
 	/// <summary>角色名（供顶栏/登入页展示）。</summary>
 	public static string RoleName
@@ -28,17 +32,13 @@ public static class DemoSession
 			return Role switch
 			{
 				RoleOperator => "操作员",
-				RoleTechnician => "技术员",
-				RolePe => "PE",
-				RoleMe => "ME",
 				RoleAdministrator => "管理员",
-				RoleVendor => "厂商",
 				_ => "未知",
 			};
 		}
 	}
 
-	/// <summary>顶栏显示文本（如「演示管理员 (管理员)」）。</summary>
+	/// <summary>顶栏显示文本（如「操作员 (操作员)」）。</summary>
 	public static string Display => IsLoggedIn ? $"{UserName} ({RoleName})" : "未登录";
 
 	public static void Login(string name, int role)
@@ -47,9 +47,17 @@ public static class DemoSession
 		Role = role;
 	}
 
+	/// <summary>登出后回到未登录态；再次登录默认仍是操作员。</summary>
 	public static void Logout()
 	{
 		UserName = "";
 		Role = 0;
+	}
+
+	/// <summary>恢复默认操作员登录（登出后重新进入程序 / 显式重置时调用）。</summary>
+	public static void LoginAsDefaultOperator()
+	{
+		UserName = "操作员";
+		Role = RoleOperator;
 	}
 }

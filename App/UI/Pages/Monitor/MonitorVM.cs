@@ -100,41 +100,38 @@ public partial class MonitorVM : UiVM<MonitorPage>
 		AddSignal("公共", "上位机心跳", Tha26003.MwText(Tha26003.MwHeartbeat),
 			"上位机每 0.5s 写 1，告知 PLC 在线",
 			s => s.Heartbeat.ToString());
-		AddSignal("公共", "采集启动", Tha26003.MwText(Tha26003.MwStart) + "/" + (Tha26003.MwStart + 1),
-			"PLC 置 20001=1 → 上位机开始采集并回写 0",
-			s => s.IsConnected ? "已启动" : "--");
 
 		// ===== 打码站 =====
 		AddSignal("打码站", "打码触发", Tha26003.MwText(Tha26003.MwMarkTrigger),
 			"PLC 写 1 → 上位机生成内容并下发打标机；上位机收到即清 0",
 			s => s.Mark.Trigger.ToString());
 		AddSignal("打码站", "打码结果", Tha26003.MwText(Tha26003.MwMarkResult),
-			"1=OK 2=打标NG 3=回执超时 4=生成失败 5=MES异常 6=回执不符",
+			"1=打码完成（仅成功写 1）；失败不写保持 0，原因见弹窗/日志",
 			s => s.Mark.Result == 0 ? "--" : $"{s.Mark.Result} ({s.Mark.Text})");
 		AddSignal("打码站", "打码内容回写", Tha26003.MwRangeText(Tha26003.MwMarkEcho, Tha26003.MarkEchoWords),
 			"上位机回写给 PLC 的最终打标内容（40WORD）",
 			s => string.IsNullOrWhiteSpace(s.Mark.Detail) ? "--" : s.Mark.Detail);
-		AddSignal("打码站", "PLC附带内容", Tha26003.MwRangeText(Tha26003.MwPlcContent, Tha26003.PlcContentWords),
-			"待定：非空时用作打标内容（20WORD）",
-			_ => "--");
 
 		// ===== 读码站 =====
 		AddSignal("读码站", "读码触发", Tha26003.MwText(Tha26003.MwScanTrigger),
 			"PLC 写 1 → 上位机触发扫码枪（基恩士 SR-1000）；上位机收到即清 0",
 			s => s.Scan.Trigger.ToString());
 		AddSignal("读码站", "读码结果", Tha26003.MwText(Tha26003.MwScanResult),
-			"1=OK 2=未扫到 3=重码 4=错码 5=枪异常 6=MES异常",
+			"1=OK 2=NG（内部：未扫到/重码/错码/枪异常/MES异常；扫不上自动重试 3 次）",
 			s => s.Scan.Result == 0 ? "--" : $"{s.Scan.Result} ({s.Scan.Text})");
 		AddSignal("读码站", "读码内容回写", Tha26003.MwRangeText(Tha26003.MwScanEcho, Tha26003.ScanEchoWords),
 			"上位机回写给 PLC 的实际读到的码（20WORD）",
 			s => string.IsNullOrWhiteSpace(s.Scan.Detail) ? "--" : s.Scan.Detail);
+		AddSignal("读码站", "PLC附带前站镭码", Tha26003.MwRangeText(Tha26003.MwPlcCode, Tha26003.PlcCodeWords),
+			"PLC 提供给 MES 比对的前站镭码内容（40WORD）；枪码与它不一致 → 判错码（%MW10522=2）",
+			_ => $"见 {Tha26003.MwText(Tha26003.MwPlcCode)} 区（读码触发时读回，与枪码比对）");
 
 		// ===== 上传站 =====
 		AddSignal("上传站", "上传触发", Tha26003.MwText(Tha26003.MwUploadTrigger),
 			"PLC 写 1（同时冻结数据区）→ 上位机抓取全量信息",
 			s => s.Unload.Trigger.ToString());
 		AddSignal("上传站", "上传结果", Tha26003.MwText(Tha26003.MwUploadResult),
-			"1=落库OK 2=数据NG 3=失败/超时；PLC 读到后解冻数据区",
+			"1=落库OK 2=落库失败（弹窗提示原因）；PLC 读到后解冻数据区",
 			s => s.Unload.Result == 0 ? "--" : $"{s.Unload.Result} ({s.Unload.Text})");
 
 		// ===== 数据区·结果字 =====
@@ -145,9 +142,10 @@ public partial class MonitorVM : UiVM<MonitorPage>
 		AddSignal("数据区", "位置度结果", Tha26003.MwText(Tha26003.SegResultBase + Tha26003.OffPosition),
 			"1=OK 2=NG", s => ResultText(s.Live?.PositionResult ?? 0));
 		AddSignal("数据区", "总结果", "MES 自算",
-			"其余结果无 NG(2) → OK(1)；有一项 NG → NG(2)；数据不齐 → --",
-			s => Tha26003.ResultText(Tha26003.ComputeOverall(null, null,
-				s.Live?.WithstandResult, s.Live?.PinHeightResult, s.Live?.PositionResult)));
+			"四项（耐压/针高/位置度/扫码）无 NG(2) → OK(1)；有一项 NG → NG(2)；缺项 → --",
+			s => Tha26003.ResultText(Tha26003.ComputeOverall(
+				s.Live?.WithstandResult, s.Live?.PinHeightResult, s.Live?.PositionResult,
+				s.Scan.Result == 0 ? null : s.Scan.Result)));
 		AddSignal("数据区", "是否复检", "无地址（PLC 未提供）",
 			"协议地址表此栏为「暂无」→ 记录里恒为 NULL（显示 --）；PLC 定义该地址后接入上传站读取",
 			_ => "--");

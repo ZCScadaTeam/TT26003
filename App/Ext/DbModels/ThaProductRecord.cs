@@ -10,8 +10,8 @@ namespace AppZC.Models.DB;
 /// 与"读到了 0"区分开。UI 一律显示 `--`，不把 null 伪装成 0.000。
 ///
 /// 点数口径：上/下针高各 15 点；上/下位置度各 15 点（PIN16 为协议预留，不采集、不建列）。
-/// 结果码：MarkResult 见 <see cref="Services.MarkResultCode"/>、ReadResult 见 <see cref="Services.ScanResultCode"/>、
-/// UploadResult 见 <see cref="Services.UploadResultCode"/>；结果字 1=OK 2=NG。
+/// 结果码：只保留 <see cref="Services.UploadResultCode"/>（1=落库OK 2=落库失败）；
+/// 打码/读码的执行结果不进本表（只写 %ThaMarkLog / %ThaScanLog 流水与弹窗），结果字 1=OK 2=NG。
 /// </summary>
 [SugarTable("ThaProductRecord", TableDescription = "THA26003 产品检测记录")]
 [SugarIndex("idx_tha_create_time", nameof(CreateTime), OrderByType.Asc, false)]
@@ -22,29 +22,37 @@ public class ThaProductRecord
 	[SugarColumn(IsPrimaryKey = true)]
 	public long Id { get; set; }
 
-	/// <summary>产品码：打码站生成的 12 位纯时间码（yyMMddHHmmss）。未打码/打码失败时为 null。</summary>
+	/// <summary>产品码：打码站生成的码（默认 12 位纯时间码 yyMMddHHmmss，配了码段则为各段拼接）。未打码/打码失败时为 null。</summary>
 	[SugarColumn(ColumnDescription = "产品码（12 位纯时间码）", Length = 32, IsNullable = true)]
 	public string? ProductCode { get; set; }
 
-	// ===== 三站结果（nullable：该站未执行/未采集时为 null）=====
+	/// <summary>
+	/// 镭码内容：本件实际下发给打标机的打标字符串（= 打码站生成的码内容）。
+	/// 与 <see cref="ProductCode"/> 同源但分开存：一旦后续打码内容带校验位/等级等附加字符，
+	/// 两列会不同（产品码 = 业务码，镭码内容 = 打在件上的原文），追溯时能直接看到。
+	/// 未打码 / 打码失败时为 null。
+	/// </summary>
+	[SugarColumn(ColumnDescription = "镭码内容（打标原文）", Length = 64, IsNullable = true)]
+	public string? MarkContent { get; set; }
 
-	/// <summary>打码站结果码：1=OK 2=打标机NG 3=回执超时 4=码生成失败 5=MES异常 6=回执内容不符。</summary>
-	[SugarColumn(ColumnDescription = "打码结果码", IsNullable = true)]
-	public int? MarkResult { get; set; }
+	// ===== 落库结果（nullable：未采集时为 null）=====
 
-	/// <summary>读码站结果码：1=OK 2=未扫到 3=重码 4=错码 5=枪通讯异常 6=MES异常。</summary>
-	[SugarColumn(ColumnDescription = "读码结果码", IsNullable = true)]
-	public int? ReadResult { get; set; }
-
-	/// <summary>上传结果码：1=落库 OK 2=数据校验 NG 3=落库失败/超时。</summary>
-	[SugarColumn(ColumnDescription = "上传结果码", IsNullable = true)]
+	/// <summary>上传（采集）结果码：1=落库 OK 2=落库失败。</summary>
+	[SugarColumn(ColumnDescription = "上传结果码 1=落库OK 2=落库失败", IsNullable = true)]
 	public int? UploadResult { get; set; }
 
 	// ===== PLC 检测结果字（nullable：未采集 / 读到非 1/2 的值时为 null）=====
 
-	/// <summary>总结果（MES 自算）：其余结果无 NG 且齐全 → 1；有 NG → 2；数据不齐 → null。</summary>
+	/// <summary>总结果（MES 自算）：四项（耐压/针高/位置度/扫码）无 NG 且齐全 → 1；有 NG → 2；缺项 → null。</summary>
 	[SugarColumn(ColumnDescription = "总结果（MES自算） 1=OK 2=NG", IsNullable = true)]
 	public int? OverallResult { get; set; }
+
+	/// <summary>
+	/// 扫码（读码站）结果：1=OK 2=NG；null = 该件未扫码（前面 NG 不扫码）。
+	/// 列名沿用历史列 <c>ReadResult</c>，避免老库迁移。
+	/// </summary>
+	[SugarColumn(ColumnName = "ReadResult", ColumnDescription = "扫码结果 1=OK 2=NG", IsNullable = true)]
+	public int? ScanResult { get; set; }
 
 	/// <summary>导通耐压结果：1=OK 2=NG。</summary>
 	[SugarColumn(ColumnDescription = "导通耐压结果 1=OK 2=NG", IsNullable = true)]
@@ -68,17 +76,16 @@ public class ThaProductRecord
 	[SugarColumn(ColumnDescription = "是否复检 1=是 2=否（PLC未提供→null）", IsNullable = true)]
 	public int? IsRetest { get; set; }
 
-	/// <summary>打码完成时间。</summary>
-	[SugarColumn(ColumnDescription = "打码时间", IsNullable = true)]
-	public DateTime? MarkTime { get; set; }
-
-	/// <summary>读码时间。</summary>
-	[SugarColumn(ColumnDescription = "读码时间", IsNullable = true)]
-	public DateTime? ScanTime { get; set; }
-
 	/// <summary>读码枪返回的原始串（未归一化，便于排查杂质字符）。</summary>
 	[SugarColumn(ColumnDescription = "读码枪原始返回", Length = 128, IsNullable = true)]
 	public string? ScanCodeRaw { get; set; }
+
+	/// <summary>
+	/// 码等级：从扫码内容里拆出来的等级（枪回包 <c>000143348000026070:A</c> → 码 000143348000026070 / 等级 A）。
+	/// 解析正则见 <see cref="Configs.AppConfig.ScannerCodePattern"/>。未扫码 / 内容里没写等级 → null。
+	/// </summary>
+	[SugarColumn(ColumnDescription = "码等级", Length = 8, IsNullable = true)]
+	public string? ScanCodeLevel { get; set; }
 
 	/// <summary>上传结果码：0=未上传 1=已上传 2=上传失败。</summary>
 	[SugarColumn(ColumnDescription = "上传状态 0=未传 1=已传 2=失败")]

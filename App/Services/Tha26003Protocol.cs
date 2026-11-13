@@ -10,12 +10,12 @@ namespace AppZC.Services;
 /// 地址模型（Rev.2，全部 ≤ 65535，可直接作 Modbus 寄存器号；AddressStartWithZero=true 时字符串地址 == %MW 编号）：
 /// 通讯库：HslCommunication 13.0.1，设备类 InovanceTcpNet（汇川，派生自 ModbusTcpNet）。
 ///   信号区  %MW10500 打码触发 / 10502 打码结果 / 10520 读码触发 / 10522 读码结果
-///           %MW10530 上传触发 / 10532 上传结果 / 10540 PLC附带内容(20WORD) / 10560 读码回写(20WORD)
+///           %MW10530 上传触发 / 10532 上传结果 / 10560 读码回写(20WORD)
 ///   回写区  %MW10420 打码内容回写(40WORD)
 ///   数据区  %MW10002 结果字(7WORD) / 10022 上针高15 / 10122 下针高15 / 10220 上位置度15X/Y / 10320 下位置度15X/Y
-///   握手    %MW20000/20001 采集启动；%MW20502 心跳
+///   心跳    %MW20502（0.5s 写 1）
 ///
-/// Modbus FC03 单请求最多 125 个寄存器，而数据区跨度 478 WORD，因此必须分段读；
+/// Modbus FC03 单请求最多 125 个寄存器，而数据区跨 %MW10002~10379（378 WORD），因此必须分 5 段读（共 187 WORD）；
 /// 信号区三站触发位可一次读 10500 起 41 WORD 全覆盖。
 /// </summary>
 public static class Tha26003
@@ -27,10 +27,8 @@ public static class Tha26003
 	public const int MwScanResult = 10522;    // PC→PLC 读码结果码
 	public const int MwUploadTrigger = 10700; // PLC→PC 采集(上传)触发（写 1），**独立于读码站**：前面 NG 不扫码的产品同样要上传
 	public const int MwUploadResult = 10702;  // PC→PLC 采集(上传)完成（写 1=成功；异常写 2/3）
-	public const int MwPlcContent = 10540;    // PLC→PC PLC 附带内容（20WORD，待定）
 	public const int MwScanEcho = 10560;      // PC→PLC 读码内容回写（20WORD）
 	public const int MwMarkEcho = 10420;      // PC→PLC 打码内容回写（40WORD）
-	public const int MwStart = 20000;         // 采集启动
 	public const int MwHeartbeat = 20502;     // 心跳（0.5s 写 1）
 
 	/// <summary>单个 %MW 地址的显示文本（UI/日志用，避免各处手写地址而漂移）。</summary>
@@ -39,7 +37,14 @@ public static class Tha26003
 	/// <summary>WORD 区段地址的显示文本，如 <c>%MW10420~10459</c>。</summary>
 	public static string MwRangeText(int mw, int words) => $"%MW{mw}~{mw + words - 1}";
 
-	/// <summary>信号区一次读的长度：%MW10500~10540（打码/读码两站触发位 + 回写区头）。</summary>
+	// ===== PLC 附带前站镭码内容（供读码站比对）=====
+
+	/// <summary>PLC 附带前站镭码内容：%MW10580~10619（40 WORD = 80 字节 ASCII）。</summary>
+	public const int MwPlcCode = 10580;
+	/// <summary>该区 WORD 数（协议表标 40WORD，长度不够可增加）。</summary>
+	public const int PlcCodeWords = 40;
+
+	/// <summary>信号区一次读的长度：%MW10500~10540（打码/读码两站触发位与结果位；10530~10540 为旧预留，一并读回便于对账）。</summary>
 	public const ushort SignalBlockLength = 41;
 
 	/// <summary>上传站信号区起点（%MW10700 采集触发 / %MW10702 采集完成）。</summary>
@@ -63,7 +68,6 @@ public static class Tha26003
 	public const int OffUploadTrigger = 30; // 预留（上传位已独立到 %MW10700 区，不在此块内）
 	public const int OffUploadResult = 32;  // 预留
 
-	public const int PlcContentWords = 20; // 40 字符
 	public const int MarkEchoWords = 40;   // 80 字符
 	public const int ScanEchoWords = 20;   // 40 字符
 
@@ -263,27 +267,29 @@ public static class Tha26003
 	/// 打码/读码结果用的是各自的结果码空间（1~6），只有 ==1 才算通过
 	/// （否则重码 3、错码 4、枪异常 5 会被"没有 2 就 OK"的朴素判断误判成 OK）。
 	/// </summary>
-	public static int? ComputeOverall(
-		int? markResult, int? readResult, int? withstand, int? pinHeight, int? position)
+	/// <summary>
+	/// 总结果（MES 自算）：**四项结果（导通耐压 / 针高 / 位置度 / 扫码）里没有 NG(2) → OK(1)**；
+	/// 有任何一项 NG → 2；测量三项缺项 → null（无法判定，不猜 OK）；扫码为 null（未扫码）不阻塞 OK。
+	/// </summary>
+	public static int? ComputeOverall(int? withstand, int? pinHeight, int? position, int? scan)
 	{
-		// 结果字口径：只有 1=OK / 2=NG 有效，其余（0=未采集、异常值）视为"未知"
+		// 结果口径：只有 1=OK / 2=NG 有效，其余（0=未采集、异常值）视为"未知"
 		static int? NormResult(int? v) => v is 1 or 2 ? v : null;
 
 		var w = NormResult(withstand);
 		var p = NormResult(pinHeight);
 		var s = NormResult(position);
+		var c = NormResult(scan);
 
-		// 打码/读码用各自的结果码空间（1~6）：非 null 即"已执行"，只要 !=1（NG/超时/重码/错码/回执不符）就判 NG
-		var anyNg = (markResult != null && markResult != 1)
-			|| (readResult != null && readResult != 1)
-			|| w == 2 || p == 2 || s == 2;
-		if (anyNg)
+		// 四项里任何一项 NG → 总结果 NG
+		if (w == 2 || p == 2 || s == 2 || c == 2)
 			return 2;
 
-		// 有字段未采集 → 无法判定（不猜 OK）
-		if (markResult == null || readResult == null || w == null || p == null || s == null)
+		// 测量三项（耐压/针高/位置度）缺一 → 无法判定（不猜 OK）
+		if (w == null || p == null || s == null)
 			return null;
 
+		// 扫码为 null = 该件未扫码（前面 NG 不扫码 / 无码件）→ 不阻塞 OK
 		return 1;
 	}
 
@@ -322,17 +328,17 @@ public static class Tha26003
 	public static int Word(byte[] raw, int wordOffset)
 		=> (raw[wordOffset * 2] << 8) | raw[wordOffset * 2 + 1];
 
-	/// <summary>针高：DINT（2WORD）÷1000。高字在前为 Modbus 大端标准；<paramref name="format"/> 可切低字在前。
+	/// <summary>
+	/// 针高：DINT（2WORD）÷1000。
+	/// 转换走 HSL 的 <see cref="RegularByteTransform.TransInt32"/>（**与 `plc.ReadInt32("MWxxxxx")` 同一套字节变换**），
+	/// 字序由 <paramref name="format"/> 选 CDAB（低字在前，默认）/ ABCD（高字在前）。
 	/// 注意：DINT 没有 NaN 语义，PLC 未写该区时读到 0 → 0.000（与真实 0 无法区分），
-	/// 「该件未做针高检测」要靠整段读失败或结果字（%MW10004）判断。</summary>
+	/// 「该件未做针高检测」要靠整段读失败或结果字（%MW10004）判断。
+	/// </summary>
 	public static double Int32Div1000(byte[] raw, int wordOffset, PinHeightFormat format)
 	{
-		int w0 = Word(raw, wordOffset);
-		int w1 = Word(raw, wordOffset + 1);
-		var hi = format == PinHeightFormat.Int32SwappedDiv1000 ? w1 : w0;
-		var lo = format == PinHeightFormat.Int32SwappedDiv1000 ? w0 : w1;
-		var v = unchecked((int)(((uint)hi << 16) | (uint)lo));
-		return v / 1000.0;
+		var bt = format == PinHeightFormat.Int32Abcd ? BtAbcd : BtCdab;
+		return bt.TransInt32(raw, wordOffset * 2) / 1000.0;
 	}
 
 	/// <summary>位置度：REAL（2WORD 单精度浮点），字序由 <paramref name="format"/> 决定。</summary>
@@ -389,47 +395,74 @@ public static class Tha26003
 	/// <summary>结果字显示：1→OK 2→NG 其他/null→--。</summary>
 	public static string ResultText(int? v) => v switch { 1 => "OK", 2 => "NG", _ => "--" };
 
-	/// <summary>打码结果码显示。</summary>
+	/// <summary>打码结果码显示：PLC 侧只有 1=OK / 2=NG。</summary>
 	public static string MarkResultText(int? v) => v switch
 	{
 		1 => "OK",
-		2 => "打标NG",
-		3 => "回执超时",
-		4 => "生成失败",
-		5 => "MES异常",
-		6 => "回执不符",
+		2 => "NG",
 		_ => "--",
 	};
 
-	/// <summary>读码结果码显示。</summary>
+	/// <summary>
+	/// 打码完成信号 → 写 %MW10502 的值：**只有成功才是 1**；
+	/// 失败返回 null（**不写**，PLC 侧保持 0），原因走弹窗 / 日志 / 打码流水表。
+	/// </summary>
+	public static int? MarkDoneCode(MarkResultCode c) => c == MarkResultCode.Ok ? 1 : null;
+
+	/// <summary>打码内部细分原因文本（弹窗/日志用，不上 PLC）。</summary>
+	public static string MarkReasonText(MarkResultCode c) => c switch
+	{
+		MarkResultCode.Ok => "OK",
+		MarkResultCode.LaserNg => "打标NG（回执不带 OK）",
+		MarkResultCode.Timeout => "回执超时",
+		MarkResultCode.GenerateFailed => "码生成失败",
+		MarkResultCode.InternalError => "MES 异常",
+		MarkResultCode.EchoMismatch => "回执内容不符",
+		_ => "--",
+	};
+
+	/// <summary>读码结果码显示：PLC 侧只有 1=OK / 2=NG。</summary>
 	public static string ScanResultText(int? v) => v switch
 	{
 		1 => "OK",
-		2 => "未扫到",
-		3 => "重码",
-		4 => "错码",
-		5 => "枪异常",
-		6 => "MES异常",
+		2 => "NG",
 		_ => "--",
 	};
 
-	/// <summary>上传（采集）结果码显示。</summary>
+	/// <summary>
+	/// 读码结果码 → 写 PLC 的值：**1=OK，其余全部 2=NG**（重码/错码/未扫到/枪异常不再细分）。
+	/// </summary>
+	public static int ScanPlcCode(ScanResultCode c) => c == ScanResultCode.Ok ? 1 : 2;
+
+	/// <summary>读码内部细分原因文本（弹窗/日志用，不上 PLC）。</summary>
+	public static string ScanReasonText(ScanResultCode c) => c switch
+	{
+		ScanResultCode.Ok => "OK",
+		ScanResultCode.NoRead => "未扫到",
+		ScanResultCode.Duplicate => "重码",
+		ScanResultCode.BadFormat => "错码",
+		ScanResultCode.CommError => "枪异常",
+		ScanResultCode.InternalError => "MES异常",
+		_ => "--",
+	};
+
+	/// <summary>上传（采集）结果码显示：只有 1=OK / 2=失败（落库结果）。</summary>
 	public static string UploadResultText(int? v) => v switch
 	{
 		1 => "OK",
-		2 => "数据NG",
-		3 => "失败",
+		2 => "失败",
 		_ => "--",
 	};
 }
 
 /// <summary>针高口径：PLC 侧数据类型 **DINT（32 位有符号整数）**，收到值需 ÷1000 显示（2115 → 2.115）。</summary>
+/// <summary>针高口径：PLC 侧数据类型 **DINT（32 位有符号整数）**，读取后 ÷1000 显示（2115 → 2.115 mm）。</summary>
 public enum PinHeightFormat
 {
-	/// <summary>高字在前（Modbus 大端标准，ABCD）：2WORD 拼成 int32 再 ÷1000。默认。</summary>
-	Int32Div1000 = 0,
-	/// <summary>低字在前（CDAB）：现场若字序相反时切到本项。</summary>
-	Int32SwappedDiv1000 = 1,
+	/// <summary>字序 CDAB：**低字在前**（汇川 AM/H5U、三菱风格 PLC 的 DINT 排列）。默认。</summary>
+	Int32Cdab = 0,
+	/// <summary>字序 ABCD：**高字在前**（部分 PLC/旧版本配置）。</summary>
+	Int32Abcd = 1,
 }
 
 /// <summary>位置度口径：PLC 侧数据类型 **REAL（32 位浮点）**。</summary>
@@ -441,37 +474,61 @@ public enum PositionFormat
 	FloatAbcd = 1,
 }
 
-/// <summary>打码站结果码（写入 %MW10502）。</summary>
+/// <summary>
+/// 打码站结果码。**%MW10502 是「打码完成」信号，只写 1（成功完成）；失败不写（保持 0）+ 弹窗提示**。
+/// 本枚举的细分值仅作内部诊断（弹窗标题 / 日志 / %ThaMarkLog），不上 PLC。
+/// </summary>
 public enum MarkResultCode
 {
 	NotDone = 0,
 	Ok = 1,
+	/// <summary>NG（MES 内部记录用；不会写到 PLC）。</summary>
+	Ng = 2,
+	/// <summary>内部诊断：打标机回执不带 OK（对外仅弹窗）。</summary>
 	LaserNg = 2,
+	/// <summary>内部诊断：回执超时 / 通讯异常。</summary>
 	Timeout = 3,
+	/// <summary>内部诊断：取不到唯一时间码。</summary>
 	GenerateFailed = 4,
+	/// <summary>内部诊断：MES 内部异常。</summary>
 	InternalError = 5,
+	/// <summary>内部诊断：回执内容与下发不一致。</summary>
 	EchoMismatch = 6,
 }
 
-/// <summary>读码站结果码（写入 %MW10522）。</summary>
+/// <summary>
+/// 读码站结果码。
+/// **写入 %MW10522 只有两个值：1=OK / 2=NG**（与 PLC 约定）；
+/// 其余细分值仅作内部诊断（弹窗原因 / 流水表），统一由 <see cref="Tha26003.ScanPlcCode"/> 归为 2。
+/// </summary>
 public enum ScanResultCode
 {
 	NotDone = 0,
 	Ok = 1,
-	NoRead = 2,
+	/// <summary>NG（写 PLC 的唯一非 OK 值）。</summary>
+	Ng = 2,
+	/// <summary>内部诊断：未扫到 / 扫码枪回 error（对外也是 2）。</summary>
+	NoRead = 7,
+	/// <summary>内部诊断：重码（对外也是 2）。</summary>
 	Duplicate = 3,
+	/// <summary>内部诊断：错码/格式不符（对外也是 2）。</summary>
 	BadFormat = 4,
+	/// <summary>内部诊断：扫码枪通讯异常（对外也是 2）。</summary>
 	CommError = 5,
+	/// <summary>内部诊断：MES 内部异常（对外也是 2）。</summary>
 	InternalError = 6,
 }
 
-/// <summary>上传（采集）站结果码（写入 %MW10702）。</summary>
+/// <summary>
+/// 上传（采集）站结果码（写入 %MW10702）：**只区分"落库成功/失败"两个值** ——
+/// 1=落库 OK（数据已入本地库）；2=落库失败（读数据区失败 / 数据异常未落库 / 数据库写入失败）。
+/// 「数据 NG」是产品质量判定，由 ProductRecord.OverallResult 承担，不再占用本结果码。
+/// </summary>
 public enum UploadResultCode
 {
 	NotDone = 0,
 	Ok = 1,
-	DataInvalid = 2,
-	Failed = 3,
+	Failed = 2,
 }
 
 /// <summary>码索引状态机（ThaCodeIndex.Status）。</summary>

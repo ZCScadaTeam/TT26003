@@ -46,6 +46,8 @@ DDD.Framework.sln
 .dotnet/
 
 # ============ 运行期生成的本地库与发布文件 ============
+# 授权激活状态文件（现场机器生成，不入库）
+License.dat
 *.db
 *.db-shm
 *.db-wal

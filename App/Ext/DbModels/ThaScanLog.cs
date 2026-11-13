@@ -24,8 +24,19 @@ public class ThaScanLog
 	[SugarColumn(ColumnDescription = "归一化码", Length = 64, IsNullable = true)]
 	public string? CodeNormalized { get; set; }
 
+	/// <summary>
+	/// 码等级：从枪回包拆出的等级（<c>000143348000026070:A</c> → A）。
+	/// 内容里没写等级 / 正则不匹配 → null。
+	/// </summary>
+	[SugarColumn(ColumnDescription = "码等级", Length = 8, IsNullable = true)]
+	public string? CodeLevel { get; set; }
+
+	/// <summary>PLC 附带前站镭码内容（%MW10580 读回，比对用；未启用比对/未读到为 null）。</summary>
+	[SugarColumn(ColumnDescription = "PLC附带前站镭码", Length = 64, IsNullable = true)]
+	public string? PlcCode { get; set; }
+
 	/// <summary>结果码：见 <see cref="Services.ScanResultCode"/>。</summary>
-	[SugarColumn(ColumnDescription = "结果码 1=OK 2=未扫到 3=重码 4=错码 5=枪异常 6=MES异常")]
+	[SugarColumn(ColumnDescription = "结果码 1=OK 3=重码 4=错码 5=枪异常 6=MES异常 7=未扫到")]
 	public int Result { get; set; }
 
 	/// <summary>否定原因（OK 时为空），如 "长度不符(11)" / "重码(已上传)" / "时间超窗(前37分钟)"。</summary>

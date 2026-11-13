@@ -1,4 +1,4 @@
-<UserControl
+﻿<UserControl
 	xmlns="https://github.com/avaloniaui"
 	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 	xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -38,7 +38,7 @@
 						<TextBlock Grid.Row="3" Grid.Column="0" Text="码" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,3"/>
 						<TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding MarkStation.Detail}" FontSize="14" FontWeight="SemiBold" Margin="0,3"/>
 					</Grid>
-					<TextBlock Grid.Row="3" Text="1=OK 2=打标NG 3=回执超时 4=生成失败 5=MES异常 6=回执不符"
+					<TextBlock Grid.Row="3" Text="1=打码完成（仅成功写 1；失败不写、保持 0 并弹窗提示）"
 					           FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap"/>
 				</Grid>
 			</Border>
@@ -46,7 +46,7 @@
 			<!-- 读码站 -->
 			<Border Grid.Column="1" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="2" CornerRadius="8"
 			        Padding="16" Background="{DynamicResource CardBackgroundBrush}">
-				<Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="6">
+				<Grid RowDefinitions="Auto,Auto,*,Auto,Auto" RowSpacing="6">
 					<Grid Grid.Row="0" ColumnDefinitions="*,Auto">
 						<TextBlock Text="{Binding ScanStation.Title}" FontSize="19" FontWeight="Bold" VerticalAlignment="Center"/>
 						<TextBlock Text="{Binding ScanStation.Subtitle}" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}"
@@ -65,12 +65,18 @@
 						<TextBlock Grid.Row="3" Grid.Column="0" Text="码" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,3"/>
 						<TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding ScanStation.Detail}" FontSize="14" FontWeight="SemiBold" Margin="0,3"/>
 					</Grid>
-					<TextBlock Grid.Row="3" Text="1=OK 2=未扫到 3=重码 4=错码 5=枪异常 6=MES异常"
+					<StackPanel Grid.Row="3" Spacing="2" Margin="0,4,0,0">
+						<CheckBox Content="循环 1s 触发扫码（只看枪返回，不校对/不写 PLC）"
+						          IsChecked="{Binding LoopScanEnabled}" FontSize="11" />
+						<TextBlock Text="{Binding LoopScanText}" FontSize="11" TextWrapping="Wrap"
+						           Foreground="{DynamicResource TextSecondaryBrush}" />
+					</StackPanel>
+					<TextBlock Grid.Row="4" Text="1=OK 2=NG（扫不上自动重试 3 次；未扫到/重码/错码/枪异常 统一报 2）"
 					           FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap"/>
 				</Grid>
 			</Border>
 
-			<!-- 下料站 -->
+			<!-- 采集站 -->
 			<Border Grid.Column="2" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="2" CornerRadius="8"
 			        Padding="16" Background="{DynamicResource CardBackgroundBrush}">
 				<Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="6">
@@ -92,7 +98,7 @@
 						<TextBlock Grid.Row="3" Grid.Column="0" Text="明细" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,3"/>
 						<TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding UnloadStation.Detail}" FontSize="14" FontWeight="SemiBold" Margin="0,3"/>
 					</Grid>
-					<TextBlock Grid.Row="3" Text="1=落库OK 2=数据NG 3=失败/超时"
+					<TextBlock Grid.Row="3" Text="1=落库OK 2=落库失败（弹窗提示原因）"
 					           FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap"/>
 				</Grid>
 			</Border>
@@ -101,16 +107,35 @@
 			<Border Grid.Column="3" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="2" CornerRadius="8"
 			        Padding="12" Background="{DynamicResource CardBackgroundBrush}">
 				<LinearPanel Orientation="Vertical" Spacing="8">
-					<TextBlock Text="PLC 状态" FontSize="16" FontWeight="Bold" HorizontalAlignment="Center"/>
+					<TextBlock Text="设备状态" FontSize="16" FontWeight="Bold" HorizontalAlignment="Center"/>
 
-					<Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4" Padding="8"
-					        Background="{DynamicResource CardBackgroundSolidBrush}">
-						<LinearPanel Orientation="Vertical" Spacing="3">
-							<TextBlock Text="连接状态" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" HorizontalAlignment="Center"/>
-							<TextBlock Text="{Binding PlcStatus}" FontSize="15" FontWeight="Bold"
-							           Foreground="{Binding PlcStatusColor}" HorizontalAlignment="Center"/>
-						</LinearPanel>
-					</Border>
+					<!-- 连接状态：PLC / 扫码枪 / 打码机（同一行三格，样式与口径完全一致）-->
+					<Grid ColumnDefinitions="*,*,*" ColumnSpacing="6">
+						<Border Grid.Column="0" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4" Padding="6"
+						        Background="{DynamicResource CardBackgroundSolidBrush}">
+							<LinearPanel Orientation="Vertical" Spacing="3" HorizontalAlignment="Center">
+								<TextBlock Text="PLC" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" HorizontalAlignment="Center"/>
+								<TextBlock Text="{Binding PlcStatus}" FontSize="15" FontWeight="Bold"
+								           Foreground="{Binding PlcStatusColor}" HorizontalAlignment="Center"/>
+							</LinearPanel>
+						</Border>
+						<Border Grid.Column="1" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4" Padding="6"
+						        Background="{DynamicResource CardBackgroundSolidBrush}">
+							<LinearPanel Orientation="Vertical" Spacing="3" HorizontalAlignment="Center">
+								<TextBlock Text="扫码枪" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" HorizontalAlignment="Center"/>
+								<TextBlock Text="{Binding ScannerLinkText}" FontSize="15" FontWeight="Bold"
+								           Foreground="{Binding ScannerLinkColor}" HorizontalAlignment="Center"/>
+							</LinearPanel>
+						</Border>
+						<Border Grid.Column="2" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4" Padding="6"
+						        Background="{DynamicResource CardBackgroundSolidBrush}">
+							<LinearPanel Orientation="Vertical" Spacing="3" HorizontalAlignment="Center">
+								<TextBlock Text="打码机" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" HorizontalAlignment="Center"/>
+								<TextBlock Text="{Binding LaserLinkText}" FontSize="15" FontWeight="Bold"
+								           Foreground="{Binding LaserLinkColor}" HorizontalAlignment="Center"/>
+							</LinearPanel>
+						</Border>
+					</Grid>
 
 					<Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4" Padding="6"
 					        Background="{DynamicResource CardBackgroundSolidBrush}">
@@ -157,7 +182,7 @@
 			<Grid RowDefinitions="Auto,*">
 				<Grid Grid.Row="0" ColumnDefinitions="*,Auto">
 					<LinearPanel Orientation="Horizontal" Spacing="10">
-						<TextBlock Text="产品记录（下料落库）" FontSize="16" FontWeight="Bold" VerticalAlignment="Center"/>
+						<TextBlock Text="产品记录（采集落库）" FontSize="16" FontWeight="Bold" VerticalAlignment="Center"/>
 						<TextBlock Text="{Binding CurrentShift}" FontSize="13" Foreground="{DynamicResource PrimaryBrush}" VerticalAlignment="Center"/>
 						<TextBlock Text="{Binding CurrentTime}" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center"/>
 					</LinearPanel>
@@ -182,17 +207,16 @@
 						</Style>
 					</DataGrid.Styles>
 					<DataGrid.Columns>
-						<DataGridTextColumn Header="下料时间" Binding="{Binding Time}" Width="Auto" />
+						<DataGridTextColumn Header="采集时间" Binding="{Binding Time}" Width="Auto" />
 						<DataGridTextColumn Header="产品码" Binding="{Binding ProductCode}" Width="Auto" />
-						<DataGridTextColumn Header="打码结果" Binding="{Binding MarkResult}" Width="Auto" />
-						<DataGridTextColumn Header="读码结果" Binding="{Binding ReadResult}" Width="Auto" />
+						<DataGridTextColumn Header="镭码内容" Binding="{Binding MarkContent}" Width="Auto" />
+						<DataGridTextColumn Header="码等级" Binding="{Binding CodeLevel}" Width="Auto" />
 						<DataGridTextColumn Header="总结果" Binding="{Binding Overall}" Width="Auto" />
+						<DataGridTextColumn Header="扫码结果" Binding="{Binding Scan}" Width="Auto" />
 						<DataGridTextColumn Header="导通耐压结果" Binding="{Binding Withstand}" Width="Auto" />
 						<DataGridTextColumn Header="针高结果" Binding="{Binding PinHeight}" Width="Auto" />
 						<DataGridTextColumn Header="位置度结果" Binding="{Binding Position}" Width="Auto" />
 						<DataGridTextColumn Header="是否复检" Binding="{Binding IsRetest}" Width="Auto" />
-						<DataGridTextColumn Header="打码时间" Binding="{Binding MarkTime}" Width="Auto" />
-						<DataGridTextColumn Header="读码时间" Binding="{Binding ScanTime}" Width="Auto" />
 						<DataGridTextColumn Header="上针高 Pin1(mm)" Binding="{Binding Top1}" Width="Auto" />
 						<DataGridTextColumn Header="上针高 Pin2(mm)" Binding="{Binding Top2}" Width="Auto" />
 						<DataGridTextColumn Header="上针高 Pin3(mm)" Binding="{Binding Top3}" Width="Auto" />

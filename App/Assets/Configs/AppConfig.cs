@@ -103,8 +103,29 @@ public class AppConfig : ConfigBase
 	/// <summary>打标机端口。</summary>
 	public int LaserPort { get; set; } = 1024;
 
-	/// <summary>打标指令模板，`{content}` 占位。协议确定后填入，如 "MARK,{content}\r"。留空=协议未落地（判 MES 异常，不假装成功）。</summary>
-	public string LaserCommandTemplate { get; set; } = "";
+	/// <summary>打标指令模板：大族打标三步流程，留空的步骤自动跳过；三步全空 = 协议未落地（判 MES 异常）。</summary>
+	public string LaserTemplateName { get; set; } = "11";
+
+	/// <summary>① 初始化模板指令，<c>{template}</c> 为模板文件名占位（如 <c>$Initialize_11</c>）。</summary>
+	public string LaserInitTemplate { get; set; } = "$Initialize_{template}";
+
+	/// <summary>② 下发数据指令，<c>{content}</c> 为打标内容占位（如 <c>$Data_260902135901</c>）。</summary>
+	public string LaserDataTemplate { get; set; } = "$Data_{content}";
+
+	/// <summary>③ 启动打标指令，无占位（如 <c>$MarkStart_</c>）。</summary>
+	public string LaserStartTemplate { get; set; } = "$MarkStart_";
+
+	/// <summary>指令结束符（追加在每条指令末尾，需要 \r\n 就填），默认空。帧模式下它在 0x03 之前。</summary>
+	public string LaserCommandEnd { get; set; } = "";
+
+	/// <summary>
+	/// 是否按大族标准帧收发：发送 0x02 + ASCII 指令 + 0x03，接收按 0x03 截断并剔掉头尾。
+	/// 默认 true；现场设备不要求帧时才关。
+	/// </summary>
+	public bool LaserFrameEnabled { get; set; } = true;
+
+	/// <summary>①② 两步等回执超时（毫秒），默认 800；③ 启动打标用 <see cref="LaserTimeoutMs"/> 等打标完成回执。</summary>
+	public int LaserStepTimeoutMs { get; set; } = 800;
 
 	/// <summary>回执成功关键字（留空=不判关键字，只看是否有回执）。</summary>
 	public string LaserOkKeyword { get; set; } = "OK";
@@ -130,18 +151,54 @@ public class AppConfig : ConfigBase
 	/// <summary>Mock 打标机模拟耗时（毫秒）。</summary>
 	public int LaserMockDelayMs { get; set; } = 200;
 
-	/// <summary>打标内容来源：Auto=纯时间码自生成 / Plc=用 %MW97540 PLC 附带内容（非空时）。</summary>
-	public string MarkContentSource { get; set; } = "Auto";
 
 	// ----- 码规则（纯时间码）-----
 
 	/// <summary>打标内容格式（= 码格式）。默认 12 位纯时间码；节拍 &lt;1s 且客户同意时可切 "yyMMddHHmmssfff"。</summary>
 	public string CodeDateFormat { get; set; } = "yyMMddHHmmss";
 
-	/// <summary>码期望长度（读码站长度校验）。</summary>
+	/// <summary>码期望长度（读码站长度校验）。配置了 <see cref="CodeSegments"/> 时以各段定长之和为准。</summary>
 	public int CodeLength { get; set; } = 12;
 
-	/// <summary>读码站时间窗校验（分钟）：码内时间与当前时间差值超过此值判错码。纯时间码下替代"固定字段比对"。</summary>
+	/// <summary>
+	/// 产品码（打码内容）分段模板：按顺序拼接，默认按客户确认的触点元件 24 位结构预置。
+	/// 每段 = 名称 + 取值方式（Fixed 固定值 / Time 时间格式 / Serial 产品批次号）+ 取值或格式 + 定长。
+	/// **全部清空 = 回到纯时间码模式**（整码 = CodeDateFormat）。
+	/// </summary>
+	public List<CodeSegment> CodeSegments { get; set; } = DefaultCodeSegments();
+
+	/// <summary>
+	/// 默认码段（按客户邮件里的字段表定，合计 24 位）：
+	/// 供应商编码1 / 生产日期天3 / 生产年份2 / 生产时间6 / 海拉零件号2 / 图纸版本2 / 产品批次号5 / 穴号2 / 原材料编号1。
+	/// 示例：<c>229926120000020800001011</c>（第 299 天 / 26 年 / 12:00:00 / 批次 00001）。
+	/// </summary>
+	public static List<CodeSegment> DefaultCodeSegments() => new()
+	{
+		new() { Name = "供应商编码", Mode = "Fixed", Value = "2", Length = 1 },
+		new() { Name = "生产日期/天", Mode = "Time", Value = "DDD", Length = 3 },
+		new() { Name = "生产年份", Mode = "Time", Value = "yy", Length = 2 },
+		new() { Name = "生产时间", Mode = "Time", Value = "HHmmss", Length = 6 },
+		new() { Name = "海拉零件号", Mode = "Fixed", Value = "02", Length = 2 },
+		new() { Name = "图纸版本", Mode = "Fixed", Value = "08", Length = 2 },
+		new() { Name = "产品批次号", Mode = "Serial", Value = "", Length = 5 },
+		new() { Name = "穴号", Mode = "Fixed", Value = "01", Length = 2 },
+		new() { Name = "原材料编号", Mode = "Fixed", Value = "1", Length = 1 },
+	};
+
+	/// <summary>
+	/// 生产日（批次日）切换时刻（点，0-23）。默认 8 = **每天早上 8 点产品批次号清零**（客户确认），
+	/// 即 00:00-07:59 打码的产品仍算前一天、批次号继续累加，08:00 第一件重新从 00001 开始。
+	/// 0 = 回到自然日零点清零。
+	/// </summary>
+	public int SerialResetHour { get; set; } = ThaProductionDay.DefaultResetHour;
+
+	/// <summary>
+	/// 日期段（yy / DDD / MMdd）是否按生产日记：true（默认）= 00:00-07:59 打码的产品日期记前一天，
+	/// 同一批次号只对应一个日期；false = 日期段用墙钟实际日期（批次号仍按 SerialResetHour 清零）。
+	/// </summary>
+	public bool DateFollowProductionDay { get; set; } = true;
+
+	/// <summary>读码站时间窗校验（分钟）：码内时间与当前时间差值超过此值判错码。纯时间码下替代"固定字段比对"。日期段按生产日记时整天的差会被折算，不按 24 小时判超窗。</summary>
 	public int CodeTimeWindowMinutes { get; set; } = 10;
 
 	/// <summary>重码比对范围：All=全量 / Today=当天 / Shift=当前班次（默认全量）。</summary>
@@ -149,6 +206,18 @@ public class AppConfig : ConfigBase
 
 	/// <summary>在制超时（小时）：已打码/已读码但超时未上传的码，同码再读判重码（防僵尸码被复用）。0=不判。</summary>
 	public int WipTimeoutHours { get; set; } = 2;
+
+	/// <summary>
+	/// 读码站是否把枪码与 PLC 附带前站镭码（<see cref="PlcCodeAddress"/>）做一致性比对。
+	/// true（默认）= 不一致直接判错码；false = 跳过比对，只做格式 + 库校验（现场 10580 未接线时的退路）。
+	/// </summary>
+	public bool PlcCodeCompareEnabled { get; set; } = true;
+
+	/// <summary>PLC 附带前站镭码内容地址（默认 %MW10580，40 WORD = 80 字节 ASCII）。</summary>
+	public int PlcCodeAddress { get; set; } = Tha26003.MwPlcCode;
+
+	/// <summary>该区 WORD 数（协议表：40WORD，长度不够可增加）。</summary>
+	public int PlcCodeWords { get; set; } = Tha26003.PlcCodeWords;
 
 	/// <summary>是否放行未登记码（未经打码站的码）。</summary>
 	public bool AllowUnregisteredCode { get; set; } = false;
@@ -182,11 +251,49 @@ public class AppConfig : ConfigBase
 	/// <summary>数据提取正则（第 1 个捕获组为码）。留空=按终止符切分。</summary>
 	public string ScannerDataRegex { get; set; } = "";
 
+	/// <summary>
+	/// 扫码内容拆解正则：命名分组 <c>code</c> = 产品码、<c>grade</c> = 码等级。
+	/// 现场枪回包是合写形式（<c>000143348000026070:A</c>）→ 码 000143348000026070 / 等级 A。
+	/// 留空=用内置默认 <c>^(?&lt;code&gt;[0-9]{4,32})(?:\s*[:：]\s*(?&lt;grade&gt;[A-Za-z0-9]{1,8}))?$</c>；
+	/// 没有分隔符（老码）时整串为码、等级为空。
+	/// 注意：若同时配了 <see cref="ScannerDataRegex"/>，要让它整体匹配「码+等级」，否则等级在设备层就被截掉了。
+	/// </summary>
+	public string ScannerCodePattern { get; set; } = "";
+
+	/// <summary>
+	/// 码等级合格阈值（默认 <c>B</c>）：等级按字母序 A&lt;B&lt;C&lt;D…，**不高于阈值即合格**
+	/// （B = A / B 合格，C / D 及更低 → 扫码结果判 NG，原因写「码等级不符(C＞阈值B)」）。
+	/// 留空 = 不做等级判定（只拆等级落库）；枪回包里没写等级时不判 NG。
+	/// </summary>
+	public string CodeGradeThreshold { get; set; } = ThaScanJudge.DefaultCodeGradeThreshold;
+
+	/// <summary>
+	/// 补读回填窗口（秒）。现场时序是「打码 → 采集落库 → 读码」（读码晚 ~1.5s），
+	/// 落库时读码上下文为空，记录里的扫码结果/码等级是 null 或上一件残值。
+	/// 读码读到本件码时，若该码的记录在这么多秒内落库、且记录里还没有本码扫码结果，
+	/// 就把扫码结果 / 码等级 / 总结果回填到那条记录，本次读码按“补读”放行（不判重码）。
+	/// **默认 60**；0 = 关闭补读回填（读码晚到一律判重码）。
+	/// </summary>
+	public int LateScanFillSeconds { get; set; } = 60;
+
 	/// <summary>扫码枪通信编码。</summary>
 	public string ScannerEncoding { get; set; } = "ASCII";
 
 	/// <summary>等读码数据超时（毫秒）。</summary>
 	public int ScannerTimeoutMs { get; set; } = 5000;
+
+	/// <summary>
+	/// 静默收尾窗口（毫秒）：收到首批数据后，连续这么多毫秒没有新字节就认为一包发完了（不等终止符）。
+	/// **默认 0 = 关闭** —— 保持「等终止符 ScannerTerminator 或等满 ScannerTimeoutMs」的原始语义，
+	/// 不为了赶节拍缩短扫码等待。需要时可配 250 让不带终止符的 error 包提前收尾。
+	/// </summary>
+	public int ScannerSilenceMs { get; set; } = 0;
+
+	/// <summary>
+	/// 枪回包命中这些关键词 = **没扫上**（去重试），而不是"扫上了但内容不对"。
+	/// 逗号/竖线分隔，不区分大小写；留空用默认值 <c>ERROR|NORED|NO READ|NORESULT|FAIL</c>。
+	/// </summary>
+	public string ScannerNoReadKeywords { get; set; } = ThaScanJudge.DefaultNoReadKeywords;
 
 	/// <summary>连接扫码枪超时（毫秒）。</summary>
 	public int ScannerConnectTimeoutMs { get; set; } = 3000;
@@ -196,6 +303,23 @@ public class AppConfig : ConfigBase
 
 	/// <summary>Mock 扫码枪模拟耗时（毫秒）。</summary>
 	public int ScannerMockDelayMs { get; set; } = 200;
+
+	/// <summary>扫不上时的最多尝试次数（含首次），默认 3：3 次都读不到 → 写 PLC 2（NG）+ 弹窗。</summary>
+	public int ScannerMaxAttempts { get; set; } = 3;
+
+	/// <summary>两次扫码尝试之间的间隔（毫秒），默认 200：给枪回到待触发态的时间。</summary>
+	public int ScannerRetryDelayMs { get; set; } = 200;
+
+	// ----- 外设连接状态（主页显示扫码枪 / 打码机，口径同 PLC 连接状态）-----
+
+	/// <summary>
+	/// 外设连接状态探测周期（毫秒），默认 5000。
+	/// 主页每周期对打码机/扫码枪各做一次 TCP 连通性探测；适配器已有长连接时直接复用状态，不另建连接。
+	/// </summary>
+	public int DeviceProbeIntervalMs { get; set; } = 5000;
+
+	/// <summary>外设状态探测单次连接超时（毫秒），默认 1000。</summary>
+	public int DeviceProbeTimeoutMs { get; set; } = 1000;
 
 	// ----- 地址映射（%MW 编程地址 → Modbus 寄存器号）-----
 
@@ -221,8 +345,8 @@ public class AppConfig : ConfigBase
 
 	// ----- 数值口径 -----
 
-	/// <summary>针高口径：PLC 侧为 DINT（32 位整数），÷1000 显示。Int32Div1000（高字在前，默认）/ Int32SwappedDiv1000。</summary>
-	public string PinHeightFormat { get; set; } = "Int32Div1000";
+	/// <summary>针高口径：PLC 侧为 DINT（32 位有符号整数），÷1000 显示。Int32Cdab（低字在前，默认）/ Int32Abcd（高字在前）。</summary>
+	public string PinHeightFormat { get; set; } = "Int32Cdab";
 
 	/// <summary>位置度口径：PLC 侧为 REAL（32 位浮点）。FloatCdab（默认）/ FloatAbcd。</summary>
 	public string PositionFormat { get; set; } = "FloatCdab";
@@ -276,4 +400,29 @@ public class AppConfig : ConfigBase
 	/// 通过 LicenseService 激活 ZC0001/ZC0000 后回写。默认 2026-10-15。
 	/// </summary>
 	public DateTime LicenseExpiry { get; set; } = new(2026, 10, 15);
+
+	// ============================================================
+	// 每日追溯报表 / 本地数据保留
+	// ============================================================
+
+	/// <summary>
+	/// 是否启用每日追溯报表（自然日一个文件，文件名 追溯报表_yyyyMMdd.xlsx，零点自动新建，当日记录自动追加）。
+	/// 关闭后只保留数据保留期清理。
+	/// </summary>
+	public bool DailyReportEnabled { get; set; } = true;
+
+	/// <summary>
+	/// 追溯报表输出目录。默认 <c>D:\追溯数据</c>（留空同样回落到该目录）。
+	/// 支持环境变量（%D%\Reports）与相对路径（相对程序目录）；目录不存在会自动创建。
+	/// </summary>
+	public string DailyReportDirectory { get; set; } = @"D:\追溯数据";
+
+	/// <summary>报表落盘间隔（秒）：固定节奏，默认 60 秒写一次当日报表。</summary>
+	public int DailyReportFlushSeconds { get; set; } = 60;
+
+	/// <summary>
+	/// 本地数据保留天数：产品记录 / 打码流水 / 读码流水 / 码索引 / 每日报表文件超过该天数，
+	/// 在程序退出时检查并清理（有旧数据才弹窗）。0 = 永不删除。默认 30。
+	/// </summary>
+	public int DataRetentionDays { get; set; } = 30;
 }

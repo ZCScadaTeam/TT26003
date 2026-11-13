@@ -3,7 +3,9 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Markup.Xaml;
 using System.ComponentModel;
+using AppZC.Configs;
 using AppZC.Services;
+using AppZC.UI.Dialogs;
 
 namespace AppZC.UI;
 
@@ -44,9 +46,64 @@ public partial class AppWindow : ApplicationWindow
 		{
 			// 移除事件处理器，避免再次触发
 			this.Closing -= OnWindowClosing;
-			
-			// 真正关闭窗口
-			this.Close();
+
+			// 退出前：当天报表落盘；有超过保留期的数据才弹窗清理（进度窗），没有则直接退出。
+			// 无论清理成功与否都必须继续退出，不能让异常把窗口卡住。
+			try { await RunExitCleanupAsync(); }
+			finally { this.Close(); }
+		}
+	}
+
+	/// <summary>
+	/// 退出前处理：
+	/// 1) 先把当日报表队列里的记录落盘（保证文件完整）；
+	/// 2) 检查本地数据是否超过保留期（默认 30 天），有才显示「正在清理」进度窗并清理；
+	/// 3) 没有旧数据时什么都不弹，自然退出。
+	/// </summary>
+	private async Task RunExitCleanupAsync()
+	{
+		try { ThaDailyReport.Shutdown(); }
+		catch (Exception ex) { LogMgr.Instance.Warn($"[THA-EXIT] 报表落盘失败：{ex.Message}"); }
+
+		var cfg = App.Current.IOC.GetOrNull<AppConfig>();
+		var keepDays = cfg?.DataRetentionDays ?? 30;
+		if (keepDays <= 0) return;
+
+		var reportDir = ThaDailyReport.ReportDirectory;
+		bool hasExpired;
+		try
+		{
+			hasExpired = await Task.Run(() => ThaDataRetention.HasExpired(keepDays, reportDir));
+		}
+		catch (Exception ex)
+		{
+			LogMgr.Instance.Warn($"[THA-EXIT] 旧数据检查失败（直接退出）：{ex.Message}");
+			return;
+		}
+
+		if (!hasExpired) return;
+
+		CleanupDialog? dialog = null;
+		try
+		{
+			dialog = new CleanupDialog($"正在清理 {keepDays} 天前的本地数据…");
+			var showTask = dialog.ShowDialog(this);
+			try
+			{
+				var progress = new Progress<string>(dialog.SetStatus);
+				await Task.Run(() => ThaDataRetention.Purge(keepDays, reportDir, progress));
+			}
+			finally
+			{
+				dialog.Finish();
+				try { await showTask; } catch { /* 窗口关闭异常忽略 */ }
+			}
+		}
+		catch (Exception ex)
+		{
+			// 弹窗本身失败也要保证能退出
+			LogMgr.Instance.Error($"[THA-EXIT] 退出前清理本地数据失败：{ex.Message}", ex);
+			try { dialog?.Finish(); } catch { /* 忽略 */ }
 		}
 	}
 	

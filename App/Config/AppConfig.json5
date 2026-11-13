@@ -1,29 +1,32 @@
 {
   "Database": {
     "DbType": "Sqlite",
-    "ConnectionString": "DataSource=AppData/THA26003.db",
+    "ConnectionString": "DataSource=D:\\Ver pro\\DataCollection -26003\\App\\bin\\Debug\\AppData\\THA26003.db",
     "IsAutoCloseConnection": true
   },
 
-  // ===== PLC 通讯配置（THA26003 ModbusTCP，%MW 保持寄存器）=====
+  // ===== PLC 通讯（THA26003 ModbusTCP）=====
   "PlcIpAddress": "127.0.0.1",
   "PlcPort": 502,
   // 汇川 PLC 系列（InovanceTcpNet.Series）：AM / H3U / H5U / Easy / EVO
   "InovanceSeries": "AM",
-  // 设备地址前缀：汇川软元件名（默认 M，%MW10500 → M10500 → Modbus 寄存器 10500）；清空 = 纯数字 Modbus 地址
+  // 设备地址前缀（汇川软元件名，默认 M；设为空串 = 纯数字 Modbus 地址）
   "PlcAddressPrefix": "MW",
   // Modbus 地址映射规则（Rev.2 地址全部 ≤65535，默认留空 = 直传）
   "ModbusAddressRules": [],
 
   // ===== 打码站（大族激光 TCP/IP）=====
-  // LaserMode: Tcp=真机 / Mock=模拟器（默认 Mock，脱机即可跑通整链）
-  "LaserMode": "Mock",
+  "LaserMode": "Tcp",
   "LaserIp": "192.168.250.100",
   "LaserPort": 1024,
-  // 指令模板：{content} 为占位符。留空 = 协议尚未落地（打码判 MES 异常）
-  "LaserCommandTemplate": "",
+  "LaserTemplateName": "11",
+  "LaserInitTemplate": "$Initialize_{template}",
+  "LaserDataTemplate": "$Data_{content}",
+  "LaserStartTemplate": "$MarkStart_",
+  "LaserCommandEnd": "",
+  "LaserStepTimeoutMs": 800,
+  "LaserFrameEnabled": true,
   "LaserOkKeyword": "OK",
-  // 从回执提取打标内容的正则（第 1 捕获组）。留空 = 不做闭环内容核对
   "LaserEchoRegex": "",
   "LaserReplyTerminator": "",
   "LaserEncoding": "ASCII",
@@ -31,21 +34,34 @@
   "LaserConnectTimeoutMs": 3000,
   "LaserKeepAlive": true,
   "LaserMockDelayMs": 200,
-  // 打标内容来源：Auto=纯时间码自生成 / Plc=用 %MW97540 PLC 附带内容
-  "MarkContentSource": "Auto",
 
-  // ===== 码规则（纯时间码）=====
+  // ===== 码规则（分段拼装 / 纯时间码）=====
+  // 产品码分段（按顺序拼接）：Mode = Fixed 固定值 / Time 时间格式 / Serial 产品批次号
+  "CodeSegments": [
+    { "Name": "供应商编码", "Mode": "Fixed", "Value": "2", "Length": 1 },
+    { "Name": "生产日期/天", "Mode": "Time", "Value": "DDD", "Length": 3 },
+    { "Name": "生产年份", "Mode": "Time", "Value": "yy", "Length": 2 },
+    { "Name": "生产时间", "Mode": "Time", "Value": "HHmmss", "Length": 6 },
+    { "Name": "海拉零件号", "Mode": "Fixed", "Value": "02", "Length": 2 },
+    { "Name": "图纸版本", "Mode": "Fixed", "Value": "08", "Length": 2 },
+    { "Name": "产品批次号", "Mode": "Serial", "Value": "", "Length": 5 },
+    { "Name": "穴号", "Mode": "Fixed", "Value": "01", "Length": 2 },
+    { "Name": "原材料编号", "Mode": "Fixed", "Value": "1", "Length": 1 }
+  ],
   "CodeDateFormat": "yyMMddHHmmss",
   "CodeLength": 12,
   "CodeTimeWindowMinutes": 10,
+  // 产品批次号（Serial 段）清零时刻：默认 8 = 每天早上 8 点清零（客户确认）
+  "SerialResetHour": 8,
+  // 日期段（yy / DDD / MMdd）是否按生产日记（00:00-07:59 记前一天）
+  "DateFollowProductionDay": true,
   "DuplicateCheckScope": "All",
   "WipTimeoutHours": 2,
   "AllowUnregisteredCode": false,
   "CodeMaxWaitMs": 3000,
 
   // ===== 读码站（基恩士 SR-1000 TCP/IP）=====
-  // ScannerMode: Trigger=软触发 / Push=硬触发推送 / Mock=模拟器
-  "ScannerMode": "Mock",
+  "ScannerMode": "Trigger",
   "ScannerIp": "192.168.250.101",
   "ScannerPort": 9004,
   "ScannerTriggerCmd": "",
@@ -55,14 +71,23 @@
   "ScannerDataRegex": "",
   "ScannerEncoding": "ASCII",
   "ScannerTimeoutMs": 5000,
+  "ScannerMaxAttempts": 3,
+  "ScannerRetryDelayMs": 200,
+  "ScannerSilenceMs": 0,
+  "ScannerNoReadKeywords": "ERROR|NORED|NO READ|NORESULT|FAIL",
+  "ScannerCodePattern": "",
+  "CodeGradeThreshold": "B",
+  // 补读回填窗口（秒）：读码晚于采集落库时，把读到本件码的结果回填到已落库那条记录；
+  // 0 = 关闭（读码晚到一律判重码）。默认 60
+  "LateScanFillSeconds": 60,
   "ScannerConnectTimeoutMs": 3000,
   "ScannerKeepAlive": true,
   "ScannerMockDelayMs": 200,
 
   // ===== 数值口径 =====
-  // 针高：PLC 侧 DINT（32 位整数，÷1000 显示）→ Int32Div1000（高字在前，默认）/ Int32SwappedDiv1000
-  "PinHeightFormat": "Int32Div1000",
-  // 位置度：PLC 侧 REAL（32 位浮点）→ FloatCdab（默认）/ FloatAbcd
+  // 针高：PLC 侧 DINT（整数，÷1000 显示）
+  "PinHeightFormat": "Int32Cdab",
+  // 位置度：PLC 侧 REAL（浮点）
   "PositionFormat": "FloatCdab",
 
   "TaskServiceHostOptions": {
@@ -77,5 +102,14 @@
     "MemorySize": "2g"
   },
 
-  "LogFilePath": "D:\\Logs\\DXX"
+  "LogFilePath": "D:\\Logs\\DXX",
+
+  // ===== 每日追溯报表 / 本地数据保留 =====
+  "DailyReportEnabled": true,
+  "DailyReportDirectory": "D:\\追溯数据",
+  "DailyReportFlushSeconds": 60,
+  "DataRetentionDays": 30,
+
+  // ===== 软件授权（由激活窗口自动写入，请勿手改；独立授权文件 Config/License.dat 优先）=====
+  "LicenseExpiry": "9999-12-31"
 }
